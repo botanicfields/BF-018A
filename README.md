@@ -32,5 +32,5 @@ M5Atom Matrix では、0 番の LED のみを使用しています。0 番以外
 
 https://github.com/tzapu/WiFiManager
 
-### 6. LED
+### 6. ボタン
 　ボタン で LED による JJY 信号送出モニターをオン・オフできます。
