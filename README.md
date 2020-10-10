@@ -10,12 +10,7 @@ M5Atom Lite, M5Atom Matrix で動作する標準電波（JJY）シミュレー�
 
 ### 2. ソフトウェア
 - Arduino IDE for ESP32
-- M5Atom ライブラリ
-
-最新版を GitHub からダウンロードする必要があります。
-
-https://github.com/m5stack/M5Atom
-
+- M5Atom ライブラリ .. 最新版を GitHub からダウンロードする必要があります。https://github.com/m5stack/M5Atom
 - WifiManager (by Tzapu, Tablatronix) ライブラリ
 
 ### 3. アンテナの準備
@@ -35,6 +30,6 @@ https://github.com/tzapu/WiFiManager
 　ボタン で LED によるモニターをオン・オフできます。
  
   青色: 40kHz 信号の送出中を示します。
-  赤色: Wifi 接続が切れると、点灯します。
-  緑色: NTP による時刻取得に失敗すると、点灯します。
+  赤色: Wifi 接続が切れると点灯します。
+  緑色: NTP による時刻取得に失敗すると点灯します。
  
