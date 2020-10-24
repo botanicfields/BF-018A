@@ -44,13 +44,13 @@ void ReportStatus(ReportItem report_item, ItemStatus item_status)
   case kNtp:
     switch (item_status) {
     case kOn:  led_color.r =    0;  break;  // green
-    case kOff: led_color.r = 0x40;  break;  // green
+    case kOff: led_color.r = 0x80;  break;  // green
     default:                        break;
     }
     break;
   case kTco:
     switch (item_status) {
-    case kOn:  if (led_enable) led_color.b = 0xff;  break;
+    case kOn:  if (led_enable) led_color.b = 0x80;  break;
     case kOff: led_color.b = 0;                     break;
     default:                                        break;
     }
