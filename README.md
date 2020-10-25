@@ -38,7 +38,10 @@ M５Atom Matrix を搭載
 - 赤色: Wifi 接続が切れると点灯します。
 - 緑色: NTP による時刻取得に失敗すると点灯します。
 
-M5Atom Matrix では、0 番の LED のみを使用しています。0 番以外の LED が点滅することがありますが、原因は不明です。
+M5Atom Matrix では、0 番の LED のみを使用しています。
+
+動作の様子
+https://youtu.be/4Soobp9k9r0
 
 ### 5. Wifi 接続
 　WiFiManager を使用しています。使い方は、WiFiManager の説明を参照ください。
