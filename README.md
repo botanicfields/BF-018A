@@ -21,6 +21,7 @@ M5Atom Lite, M5Atom Matrix で動作する標準電波（JJY）シミュレー�
 
 回路図
 https://github.com/botanicfields/BF-018A/blob/main/bf-018a_scm.pdf
+
 プリント基板
 ![PCB_front](https://github.com/botanicfields/BF-018A/blob/main/BF-018A_front.JPG)
 M５Atom Lite を搭載
