@@ -16,12 +16,15 @@ M5Atom Lite, M5Atom Matrix で動作する標準電波（JJY）シミュレー�
 ### 3. アンテナの準備
 　送信にはアンテナが必要です。GPIO22 と GND 間に 1kΩ 程度の抵抗を途中に挟んで 1m 程度の電線を接続して実験できます。電線を電波時計の至近距離に這わせると、電波時計が電線からの磁界を受信してくれます。
 
+#### 3.1 プリント基板
+　M5Atom に接続可能なプリント基板を製作しました。
+
+回路図
+https://github.com/botanicfields/BF-018A/blob/main/bf-018a_scm.pdf
 プリント基板
 ![PCB_front](https://github.com/botanicfields/BF-018A/blob/main/BF-018A_front.JPG)
-
 M５Atom Lite を搭載
 ![PCB_with_M5AtomLite](https://github.com/botanicfields/BF-018A/blob/main/BF-018A_M5AtomLite.JPG)
-
 M５Atom Matrix を搭載
 ![PCB_with_M5AtomMatrix](https://github.com/botanicfields/BF-018A/blob/main/BF-018A_M5AtomMatrix.JPG)
 
