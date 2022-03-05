@@ -9,9 +9,15 @@ M5Atom Lite, M5Atom Matrix で動作する標準電波（JJY）シミュレー�
 解説記事: https://qiita.com/BotanicFields/items/a78c80f947388caf0d36
 
 ### 2. ソフトウェア
-- Arduino IDE for ESP32
-- M5Atom ライブラリ .. 最新版を GitHub からダウンロードする必要があります。https://github.com/m5stack/M5Atom
-- WifiManager (by Tzapu, Tablatronix) ライブラリ
+　以下の版数で動作を確認できました。最新版数でコンパイルに失敗したり動作しない場合、ネットの情報などを探して古い版数にするなどの対処が必要になります。
+#### Arduino IDE:
+- 1.8.19 (Windows11)
+#### Boards manager:
+- M5Stack by M5Stack official version 2.0.2
+#### Library:
+- M5Atom 0.0.8
+- FastLED 3.5.0
+- WifiManager by Tablatronix 2.0.9-beta
 
 ### 3. アンテナの準備
 　送信にはアンテナが必要です。GPIO22 と GND 間に 1kΩ 程度の抵抗を途中に挟んで 1m 程度の電線を接続して実験できます。電線を電波時計の至近距離に這わせると、電波時計が電線からの磁界を受信してくれます。
@@ -31,12 +37,12 @@ M５Atom Matrix を搭載
 
 ### 4. 動作
 - 電源投入またはリセット後、まず Wifi 接続の動作に入ります。
-- Wifi 接続が完了後、NTP で日時を取得し、標準信号の送出を開始します。 
+- Wifi 接続が完了後、NTP で日時を取得し、標準信号の送出を開始します。
 - JJY 信号送出中を内蔵 LED でモニターできます。
- 
-- 青色: 40kHz 信号の送出中を示します。
-- 赤色: Wifi 接続が切れると点灯します。
-- 緑色: NTP による時刻取得に失敗すると点灯します。
+
+    青: 40kHz 信号の送出中を示します。  
+    赤: NTP による時刻取得に失敗すると点灯します。  
+    黄: Wifi 接続が切れると点灯します。（赤＋緑）
 
 M5Atom Matrix では、0 番の LED のみを使用しています。
 
