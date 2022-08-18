@@ -126,6 +126,6 @@ WL_CONNECTED以外の場合、赤LEDの点灯・点滅で表示
 - config portalの起動時、緑LEDを点灯
 - NTP同期待ち時、緑LEDを点滅
 
-詳細: [JJYシミュレータの状態表示]<img src="./wifi_status.JPG">
+詳細: [JJYシミュレータの状態表示]<img src="./wifi_status.jpg">
 
 以上
