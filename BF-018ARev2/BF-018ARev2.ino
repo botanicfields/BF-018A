@@ -444,6 +444,11 @@ const unsigned int loop_period_ms(100);
 
 void setup()
 {
+  // To avoid Wi-Fi issues, force GPIO0 to 0 while CH552 outputs 5V with its internal pullup.
+  // https://twitter.com/wakwak_koba/status/1553162622479974400
+  pinMode(0, OUTPUT);
+  digitalWrite(0, LOW);
+
   const bool serial_enable(true);
   const bool i2c_enable(true);  // Wire: SDA=25, SCL=21, Frequency=100kHz
   const bool display_enable(true);
