@@ -115,7 +115,7 @@ const uint32_t ledc_duty_on(2);        // 2/4 = 50%
 const uint32_t ledc_duty_off(0);       // 0
 ```
 
-　ledcのfrequenncyの型がdoubleからuint32_tに変更されせました。
+　ledcのfrequencyの型がdoubleからuint32_tに変更されました。
 
 参考: Qiita [ESP32においてLEDC(LED PWM Controller)に設定する分解能をExcelシートで検討する](https://qiita.com/BotanicFields/items/e74c449c0bef0820fcd1)
 
@@ -127,5 +127,15 @@ WL_CONNECTED以外の場合、赤LEDの点灯・点滅で表示
 - NTP同期待ち時、緑LEDを点滅
 
 詳細: [JJYシミュレータの状態表示]<img src="./wifi_status.jpg">
+
+### (6) M5AtomのWi-Fi接続が不安定となる問題への対策
+
+M5AtomにはWi-Fiの出力が低下し接続が不安定になる問題があります。USBシリアル変換用のCH552のファームウェア改善による対策が進んでいると期待されますが、未対策の既出荷品も多い状況です。対策としてGPIO0にLOWを出力する処理をsetup()の冒頭に追加しました。
+#### 参考情報
+
+- [twitter @wakwak_koba 午前8:36 2022年7月30日](https://twitter.com/wakwak_koba/status/1553162622479974400)
+- [M5Atom CH552 FW更新](https://togetter.com/li/1807623)
+- [Bugs and measures for M5Stack ATOM](https://macsbug.wordpress.com/2021/10/10/bugs-and-measures-for-m5stack-atom/)
+
 
 以上
