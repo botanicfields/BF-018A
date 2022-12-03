@@ -15,15 +15,15 @@
 参考: Qiita [標準電波 JJY もどきを M5StickC / M5Atom の Ticker で生成する](https://qiita.com/BotanicFields/items/a78c80f947388caf0d36)
 
 ## 2. ソフトウェア
-　Rev.2を確認した環境は以下のとおりです。この版数以降での動作が期待できます。
-#### Arduino IDE:
-- 1.8.19 (Windows11)
-#### Boards manager:
-- M5Stack by M5Stack official version 2.0.4
-#### Library:
-- M5Atom 0.1.0
-- tzapu/WifiManager by Tablatronix 2.0.12-beta
+　BF-018ARev2を確認したソフトウェアの参考情報です。
 
+| tool | item | 2022/12/3 |
+|:-:|:-:|:-:|
+|Application| Arduino-IDE | 2.0.2 |
+|Boards Manager| M5Stack by M5Stack official | 2.0.5-1.0 |
+|Library Manager| M5Atom by M5Stack | 0.1.0  |
+|Library Manager| FastLED by Daniel Garcia | 3.5.0 |
+|Library Manager| WiFiManager by tzapu | 2.0.14-beta |
 ## 3. ハードウェア
 　JJY信号の送信にはアンテナが必要です。GPIO22とGND間に1kΩ程度の抵抗を途中に挟んで1m程度の電線を接続して実験できます。電線を電波時計の至近距離に這わせると電波時計が電線からの磁界を受信してくれます。
 
