@@ -65,6 +65,15 @@ Rev1の動作(Rev2は「8. Rev.2変更内容」を参照):
 
 参考: GitHub [tzapu/WiFiManager](https://github.com/tzapu/WiFiManager)
 
+### 大まかな流れ:
+> (1)	M5Atomが、まずは前回接続したアクセスポイントに接続を試みる  
+(2) 接続できない場合、M5Atom自身がアクセスポイントとなりスマートホン等からの接続を待つ
+>> (2-1) スマートホン等で、アクセスポイントとなったM5Atomに接続する  
+※ SSID: Chip IDに基づく名前、password/key: なし  
+(2-2) ブラウザでIPアドレス192.168.4.1を開く  
+(2-3) M5Atomが接続すべきSSID/keyを入力する
+
+>(3)	M5Atomが指定されたSSID/keyでWi-Fiに接続する
 ## 5. LCD
 　M5Atom版では外付けLCDを使用していません。
 
