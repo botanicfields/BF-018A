@@ -146,9 +146,9 @@ const int marker(0xff);  // marker code TcoValue() returns
 // PWM for TCO signal
 const uint8_t  ledc_pin(22);           // GPIO22 for TCO
 const uint8_t  ledc_channel(0);
-const uint32_t ledc_frequency(60000);  // 40kHz(east), 60kHz(west)
-const uint8_t  ledc_resolution(2);     // 2^2 = 4
-const uint32_t ledc_duty_on(2);        // 2/4 = 50%
+const uint32_t ledc_frequency(40000);  // 40kHz(east), 60kHz(west)
+const uint8_t  ledc_resolution(8);     // 2^8 = 256
+const uint32_t ledc_duty_on(128);      // 128/256 = 50%
 const uint32_t ledc_duty_off(0);       // 0
 
 // real time

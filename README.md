@@ -1,9 +1,12 @@
 # JJY Simulator for M5Atom
 ## M5Atom Lite, M5Atom Matrixで動作する標準電波(JJY)シミュレータ
 
+### 2023/4/27 修正
+- BF-018ARev2.inoにおいてPWMの設定を改善しました。
+
 ### Rev.2
 - フォルダ: BF-018ARev2
-- 変更内容は、「8. Rev2 変更内容」を参照ください
+- 変更内容は、「8. Rev2 変更内容」を参照ください。
 
 ### Rev.1(無印)
 - フォルダ: BF-018A
@@ -17,13 +20,13 @@
 ## 2. ソフトウェア
 　BF-018ARev2を確認したソフトウェアの参考情報です。
 
-| tool | item | 2022/12/3 |
+| tool | item | 2023/4/27 |
 |:-:|:-:|:-:|
-|Application| Arduino-IDE | 2.0.2 |
-|Boards Manager| M5Stack by M5Stack official | 2.0.5-1.0 |
+|Application| Arduino-IDE | 2.1.0 |
+|Boards Manager| M5Stack by M5Stack official | 2.0.6 |
 |Library Manager| M5Atom by M5Stack | 0.1.0  |
 |Library Manager| FastLED by Daniel Garcia | 3.5.0 |
-|Library Manager| WiFiManager by tzapu | 2.0.14-beta |
+|Library Manager| WiFiManager by tzapu | 2.0.15-rc.1 |
 ## 3. ハードウェア
 　JJY信号の送信にはアンテナが必要です。GPIO22とGND間に1kΩ程度の抵抗を途中に挟んで1m程度の電線を接続して実験できます。電線を電波時計の至近距離に這わせると電波時計が電線からの磁界を受信してくれます。
 
@@ -105,22 +108,15 @@ Rev1の動作(Rev2は「8. Rev.2変更内容」を参照):
 ### (3) SSID/Keyを消去する操作を追加
 　接続先のWiFiアクセスポイントを変更する場合、SSID/Keyの設定を変更します。古いアクセスポイントが撤去済の場合、WiFiManagerのconfigration portalが自動的に起動します。古いアクセスポイントが稼働中の場合、まずEEPROMに保存されたSSID/Keyの消去することで新規設定ができます。EEPROMのSSID/Keyを消去するには、ボタンを押しながらリセットボタンを押しLEDが緑色に点灯するまでボタンを押し続けます。"configuration portal"が起動しています。
 
-### (4) 60kHzを使用
-　JJY信号は、福島県の送信所から40kHz、佐賀県の送信所から60kHzで送信されています。東日本の場合、疑似JJY信号を60kHzとすることで、福島からの信号に同期したのか、疑似信号に同期したのかを区別することができます。疑似信号を40kHzに設定するには、BF-018ARev2.inoのledc_frequencyを40000に修正ください。
-
+### (4) ~~60~~40kHzを使用
+　JJY信号は、福島県の送信所から40kHz、佐賀県の送信所から60kHzで送信されています。PWM周波数は40kHzとしています。ESP32では60KHzぴったりの信号を生成できませんが、かなり近い周波数で生成できます。東日本の場合、疑似JJY信号を60kHzとすることで、福島からの信号に同期したのか、疑似信号に同期したのかを区別することができます。疑似信号を~~40~~60kHzに設定するには、BF-018ARev2.inoのledc_frequencyを~~40000~~60000に修正ください。
 ``` BF-018ARev2.ino
-//..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
-// TCO(Time Code Output)
-Ticker tk;
-const int ticker_interval_ms(100);  // 100ms
-const int marker(0xff);  // marker code TcoValue() returns
-
 // PWM for TCO signal
-const uint8_t  ledc_pin(26);           // GPIO26 for TCO
+const uint8_t  ledc_pin(22);           // GPIO22 for TCO
 const uint8_t  ledc_channel(0);
-const uint32_t ledc_frequency(60000);  // 40kHz(east), 60kHz(west)
-const uint8_t  ledc_resolution(2);     // 2^2 = 4
-const uint32_t ledc_duty_on(2);        // 2/4 = 50%
+const uint32_t ledc_frequency(40000);  // 40kHz(east), 60kHz(west)
+const uint8_t  ledc_resolution(8);     // 2^8 = 256
+const uint32_t ledc_duty_on(128);      // 128/256 = 50%
 const uint32_t ledc_duty_off(0);       // 0
 ```
 
@@ -140,6 +136,7 @@ WL_CONNECTED以外の場合、赤LEDの点灯・点滅で表示
 ### (6) M5AtomのWi-Fi接続が不安定となる問題への対策
 
 M5AtomにはWi-Fiの出力が低下し接続が不安定になる問題があります。USBシリアル変換用のCH552のファームウェア改善による対策が進んでいると期待されますが、未対策の既出荷品も多い状況です。対策としてGPIO0にLOWを出力する処理をsetup()の冒頭に追加しました。
+
 #### 参考情報
 
 - [twitter @wakwak_koba 午前8:36 2022年7月30日](https://twitter.com/wakwak_koba/status/1553162622479974400)
