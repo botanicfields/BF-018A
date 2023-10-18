@@ -20,13 +20,14 @@
 ## 2. ソフトウェア
 　BF-018ARev2を確認したソフトウェアの参考情報です。
 
-| tool | item | 2023/4/27 |
+| tool | item | 2023/10/18 |
 |:-:|:-:|:-:|
-|Application| Arduino-IDE | 2.1.0 |
-|Boards Manager| M5Stack by M5Stack official | 2.0.6 |
-|Library Manager| M5Atom by M5Stack | 0.1.0  |
-|Library Manager| FastLED by Daniel Garcia | 3.5.0 |
-|Library Manager| WiFiManager by tzapu | 2.0.15-rc.1 |
+|Application| Arduino-IDE | 2.2.1 |
+|Boards Manager| M5Stack by M5Stack official | 2.0.8 |
+|Library Manager| M5Atom by M5Stack | 0.1.2  |
+|Library Manager| FastLED by Daniel Garcia | 3.6.0 |
+|Library Manager| WiFiManager by tzapu | 2.0.16-rc.2 |
+
 ## 3. ハードウェア
 　JJY信号の送信にはアンテナが必要です。GPIO22とGND間に1kΩ程度の抵抗を途中に挟んで1m程度の電線を接続して実験できます。電線を電波時計の至近距離に這わせると電波時計が電線からの磁界を受信してくれます。
 
