@@ -1,16 +1,24 @@
 # JJY Simulator for M5Atom
-## M5Atom Lite, M5Atom Matrixで動作する標準電波(JJY)シミュレータ
+## ATOM Lite/Matrix, ATOMS3 Liteで動作する標準電波(JJY)シミュレータ
+※ ATOMS3(無印)には対応しておりません。
 
-### 2023/4/27 修正
-- BF-018ARev2.inoにおいてPWMの設定を改善しました。
+### 2024/3/12 修正
+- BF-018ARev3にアップデートしました。
+
+### Rev.3
+- フォルダ: BF-018Rev3
+- ATOMS3 Liteに対応しました。ボードマネージャーでお使いのコントローラーを選択してください。
+- LEDモニターoffでLEDが点灯したままとなる場合がある不具合を修正しました。
+- M5Unifiedライブラリを使用し、ソース修正が不要です。
 
 ### Rev.2
 - フォルダ: BF-018ARev2
 - 変更内容は、「8. Rev2 変更内容」を参照ください。
+- Rev.3は、Rev.2を改良したものです。Rev.3をご使用ください。
 
 ### Rev.1(無印)
 - フォルダ: BF-018A
-- Rev.2は、Rev.1を改良したものです。Rev.2をご使用ください。
+- Rev.3は、Rev.1を改良したものです。Rev.3をご使用ください。
 
 ## 1. 概要
 　M5Atomで電波時計のためのJJY信号もどきを生成します。JJY信号が届かないところにある電波時計の時刻合わせができます。Wifi経由のNTPで時刻を取得し、GPIOからJJY信号を出力します。
@@ -18,15 +26,16 @@
 参考: Qiita [標準電波 JJY もどきを M5StickC / M5Atom の Ticker で生成する](https://qiita.com/BotanicFields/items/a78c80f947388caf0d36)
 
 ## 2. ソフトウェア
-　BF-018ARev2を確認したソフトウェアの参考情報です。
+　BF-018ARev3を確認したソフトウェアの参考情報です。
 
-| tool | item | 2023/10/18 |
+| tool | item | 2024/3/12 |
 |:-:|:-:|:-:|
-|Application| Arduino-IDE | 2.2.1 |
-|Boards Manager| M5Stack by M5Stack official | 2.0.8 |
-|Library Manager| M5Atom by M5Stack | 0.1.2  |
+|Application| Arduino-IDE | 2.3.2 |
+|Boards Manager| M5Stack by M5Stack official | 2.1.1 |
+|Library Manager| M5Unified by M5Stack | 0.1.13  |
+|Library Manager| M5GFX by M5Stack | 0.1.13  |
 |Library Manager| FastLED by Daniel Garcia | 3.6.0 |
-|Library Manager| WiFiManager by tzapu | 2.0.16-rc.2 |
+|Library Manager| WiFiManager by tzapu | 2.0.17 |
 
 ## 3. ハードウェア
 　JJY信号の送信にはアンテナが必要です。GPIO22とGND間に1kΩ程度の抵抗を途中に挟んで1m程度の電線を接続して実験できます。電線を電波時計の至近距離に這わせると電波時計が電線からの磁界を受信してくれます。
@@ -125,7 +134,7 @@ const uint32_t ledc_duty_off(0);       // 0
 
 参考: Qiita [ESP32においてLEDC(LED PWM Controller)に設定する分解能をExcelシートで検討する](https://qiita.com/BotanicFields/items/e74c449c0bef0820fcd1)
 
-### (5) LCD表示
+### (5) LED表示
 
 - WiFiの接続状態を表示  
 WL_CONNECTED以外の場合、赤LEDの点灯・点滅で表示
