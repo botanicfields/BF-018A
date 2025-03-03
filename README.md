@@ -2,6 +2,8 @@
 ## ATOM Lite/Matrix, ATOMS3 Liteで動作する標準電波(JJY)シミュレータ
 ※ ATOMS3(無印)には対応しておりません。
 
+### 2025/3/03 修正
+- BF-018ARev3.ino を修正しました。M5Unifiedの仕様変更に対応しcfg.serial_baudrateの指定を追加しました。
 ### 2024/3/20 修正
 - BF-018ARev3.ino を修正しました。コンパイラ警告レベルをデフォルトよりも上げると、Serial.printf()の%d指定でエラーを検出していました。
 ### 2024/3/12 修正
@@ -30,13 +32,13 @@
 ## 2. ソフトウェア
 　BF-018ARev3を確認したソフトウェアの参考情報です。
 
-| tool | item | 2024/3/12 |
+| tool | item | 2025/3/3 |
 |:-:|:-:|:-:|
-|Application| Arduino-IDE | 2.3.2 |
-|Boards Manager| M5Stack by M5Stack official | 2.1.1 |
-|Library Manager| M5Unified by M5Stack | 0.1.13  |
-|Library Manager| M5GFX by M5Stack | 0.1.13  |
-|Library Manager| FastLED by Daniel Garcia | 3.6.0 |
+|Application| Arduino-IDE | 2.3.4 |
+|Boards Manager| M5Stack by M5Stack official | 2.1.3 |
+|Library Manager| M5Unified by M5Stack | 0.2.4  |
+|Library Manager| M5GFX by M5Stack | 0.2.6  |
+|Library Manager| FastLED by Daniel Garcia | 3.9.13 |
 |Library Manager| WiFiManager by tzapu | 2.0.17 |
 
 ## 3. ハードウェア

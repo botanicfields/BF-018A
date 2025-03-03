@@ -469,7 +469,8 @@ void setup()
 
   // M5Unified
   auto cfg = M5.config();
-  cfg.external_rtc = true;  // default=false. use Unit RTC.
+  cfg.serial_baudrate = 115200;  // default=0. use Serial.print(). 
+  cfg.external_rtc = true;       // default=false. use Unit RTC.
   M5.begin(cfg);
   delay(3000);
   Serial.println();
