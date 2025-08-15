@@ -1,5 +1,5 @@
-// copyright 2024 BotanicFields, Inc.
-// BF-018A Rev.3
+// copyright 2025 BotanicFields, Inc.
+// BF-018A Rev.4
 // JJY Simulator for ATOM Lite / ATOM Matrix / ATOMS3 Lite
 //
 #include <M5Unified.h>
@@ -12,7 +12,7 @@
 
 //..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
 // for TCO(Time Code Output)
-const int jjy_frequency(40000); // 40kHz(east), 60kHz(west)
+const uint32_t jjy_frequency(40000); // 40kHz(east), 60kHz(west)
 struct tm       td;  // time of day: year, month, day, day of week, hour, minute, second
 struct timespec ts;  // time spec: second, nano-second
 
@@ -193,24 +193,20 @@ const int marker(0xff);  // marker code TcoValue() returns
 // PWM for TCO signal
 const uint8_t  ledc_pin_atom(22);   // GPIO22 for ATOM Lite/Matrix
 const uint8_t  ledc_pin_atoms3(5);  // GPIO5 for ATOMS3 Lite
-const uint8_t  ledc_channel(0);
 const uint32_t ledc_frequency(jjy_frequency);
 const uint8_t  ledc_resolution(8);  // 2^8 = 256
 const uint32_t ledc_duty_on(128);   // 128/256 = 50%
 const uint32_t ledc_duty_off(0);    // 0
+      uint8_t  ledc_pin(ledc_pin_atom);
 
 void TcoInit()
 {
-  // carrier for TCO
-  uint32_t ledc_freq_get = ledcSetup(ledc_channel, ledc_frequency, ledc_resolution);
-  Serial.printf("ledc frequency get = %d\n", ledc_freq_get);
- 
-  int ledc_pin = ledc_pin_atom;
   if (M5.getBoard() == m5::board_t::board_M5AtomS3Lite) {
     ledc_pin = ledc_pin_atoms3;
   }
-  Serial.printf("ledc pin = %d\n", ledc_pin);
-  ledcAttachPin(ledc_pin, ledc_channel);
+  Serial.printf("ledcAttach result= %d\n", ledcAttach(ledc_pin, ledc_frequency, ledc_resolution));
+  Serial.printf("ledcWrite result= %d\n", ledcWrite(ledc_pin, ledc_duty_on));
+  Serial.printf("pin= %u, duty= %lu, freq= %lu\n", ledc_pin, ledcRead(ledc_pin), ledcReadFreq(ledc_pin));
 
   // wait until middle of 100ms timing. ex. 50ms, 150ms, 250ms,..
   clock_gettime(CLOCK_REALTIME, &ts);
@@ -328,13 +324,13 @@ void Tco800ms()
 
 void TcOn()
 {
-  ledcWrite(ledc_channel, ledc_duty_on);
+  ledcWrite(ledc_pin, ledc_duty_on);
   led_b = led_b_on;
 }
 
 void TcOff()
 {
-  ledcWrite(ledc_channel, ledc_duty_off);
+  ledcWrite(ledc_pin, ledc_duty_off);
   led_b = led_b_off;
 }
 
@@ -476,10 +472,12 @@ void setup()
   Serial.println();
 
   // FastLED
-#if defined (CONFIG_IDF_TARGET_ESP32S3)  // FastLED requires strict constant for the pin number
+#if defined (CONFIG_IDF_TARGET_ESP32S3)  // FastLED requires strict constant for the pin number 
   FastLED.addLeds<WS2811, led_pin_atoms3lite, GRB>(leds, led_num);
+  Serial.println("FastLED add LEDs for ATOMS3 Lite");
 #else
   FastLED.addLeds<WS2811, led_pin_atom, GRB>(leds, led_num);
+  Serial.println("FastLED add LEDs for M5Atom Lite/Matrix");
 #endif
   FastLED.setBrightness(led_brightness);
   for (int i = 0; i < led_num; ++i) {
