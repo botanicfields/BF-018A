@@ -13,10 +13,10 @@
 - BF-018ARev3にアップデートしました。
 
 ### Rev.4
-- フォルダ: BF-018Rev4
+- フォルダ: BF-018ARev4
 - Boards Managerで、M5Stack 3.xを選択してください。
 - ATOMS3 Liteで使用いただけます。
-- 現状、M5Atom Lite/MatrixではLEDが点灯しない不具合がありますので、Rev.3をお使いください。
+- M5Atom Lite/Matrixは、現状LEDが点灯しない不具合がありますので、Rev.3をお使いください。
 
 動作確認状況：
 
@@ -30,7 +30,7 @@
 |Library Manager| WiFiManager by tzapu | 2.0.17 |
 
 ### Rev.3
-- フォルダ: BF-018Rev3
+- フォルダ: BF-018ARev3
 - Boards Managerで、M5Stack 2.xを選択してください。
 - Library Managerで、M5Unified 0.2.5, M5GFX 0.2.6を選択してください。
 - M5Atom Lite/Matrix, ATOMS3 Liteで使用いいただけます。
@@ -148,7 +148,7 @@ Rev1の動作(Rev2は「8. Rev.2変更内容」を参照):
 
 ```
 // for TCO(Time Code Output)
-const int jjy_frequency(40000); // 40kHz(east), 60kHz(west)
+const uint32_t jjy_frequency(40000); // 40kHz(east), 60kHz(west)
 ```
 
 参考: Qiita [ESP32においてLEDC(LED PWM Controller)に設定する分解能をExcelシートで検討する](https://qiita.com/BotanicFields/items/e74c449c0bef0820fcd1)
