@@ -23,10 +23,10 @@
 | tool | item | 2025/8/15 |
 |:-:|:-:|:-:|
 |Application| Arduino-IDE | 2.3.6 |
-|Boards Manager| M5Stack by M5Stack official | 3.2.2 |
-|Library Manager| M5Unified by M5Stack | 0.2.7  |
-|Library Manager| M5GFX by M5Stack | 0.2.9  |
-|Library Manager| FastLED by Daniel Garcia | 3.10.1 |
+|Boards Manager| M5Stack by M5Stack official | 3.2.3 |
+|Library Manager| M5Unified by M5Stack | 0.2.10  |
+|Library Manager| M5GFX by M5Stack | 0.2.16  |
+|Library Manager| FastLED by Daniel Garcia | 3.10.3 |
 |Library Manager| WiFiManager by tzapu | 2.0.17 |
 
 ### Rev.3
@@ -43,7 +43,7 @@
 |Boards Manager| M5Stack by M5Stack official | 2.1.4 |
 |Library Manager| M5Unified by M5Stack | 0.2.5  |
 |Library Manager| M5GFX by M5Stack | 0.2.6  |
-|Library Manager| FastLED by Daniel Garcia | 3.10.1 |
+|Library Manager| FastLED by Daniel Garcia | 3.10.3 |
 |Library Manager| WiFiManager by tzapu | 2.0.17 |
 
 ### Rev.2
