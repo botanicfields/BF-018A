@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generating a Simulated JJY Time Signal with Ticker on the M5StickC / M5Atom | BotanicFields (unofficial English translation)</title>
+<meta name="author" content="BotanicFields">
+<meta name="description" content="Unofficial English translation of BotanicFields' Qiita article on generating a simulated JJY time signal with Ticker on the M5StickC / M5Atom. Original (Japanese): https://qiita.com/BotanicFields/items/a78c80f947388caf0d36">
+<link rel="canonical" href="https://qiita.com/BotanicFields/items/a78c80f947388caf0d36">
+<link rel="alternate" hreflang="ja" href="https://qiita.com/BotanicFields/items/a78c80f947388caf0d36">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Generating a Simulated JJY Time Signal with Ticker on the M5StickC / M5Atom (unofficial English translation)">
+<meta property="og:description" content="An unofficial English translation of BotanicFields' Qiita article. All credit to the author; original (Japanese) on Qiita.">
+<meta property="og:image" content="../assets/qiita-ticker-pcb-4784.webp">
+<meta property="article:author" content="BotanicFields">
+<meta property="article:published_time" content="2020-07-26T15:54:17+09:00">
+<meta property="article:modified_time" content="2023-04-27T11:23:34+09:00">
+<meta name="theme-color" content="#3f51b5">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --border: #d1d9e0;
+    --surface: #f6f8fa;
+    --code-bg: #f6f8fa;
+    --accent: #3f51b5;
+    --link: #2f42a8;
+    --notice-bg: #fff8e1;
+    --notice-border: #e0b84a;
+    --notice-fg: #4a3b00;
+    --tn-bg: #eef1fb;
+    --tn-border: #8c9ad6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --fg: #e6e8eb;
+      --muted: #9aa3ad;
+      --border: #30363d;
+      --surface: #1c2026;
+      --code-bg: #1c2026;
+      --accent: #8c9eff;
+      --link: #9fb0ff;
+      --notice-bg: #2a2410;
+      --notice-border: #8a7020;
+      --notice-fg: #f2e3b0;
+      --tn-bg: #1b2034;
+      --tn-border: #4b5a9a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+          "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  }
+  a { color: var(--link); overflow-wrap: anywhere; }
+  a:hover { text-decoration-thickness: 2px; }
+  img { max-width: 100%; height: auto; }
+
+  .site-header {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .site-header .inner {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .site-header .brand {
+    font-weight: 700;
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .site-header .lang { font-size: 0.9rem; color: var(--muted); }
+
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  .archive-notice {
+    background: var(--notice-bg);
+    border: 1px solid var(--notice-border);
+    border-left-width: 5px;
+    color: var(--notice-fg);
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 28px;
+  }
+  .archive-notice p { margin: 0 0 8px; }
+  .archive-notice p:last-child { margin-bottom: 0; }
+  .archive-notice a { color: inherit; font-weight: 600; }
+  .archive-notice .original-link {
+    display: inline-block;
+    margin: 2px 0 4px;
+    padding: 6px 14px;
+    border: 1px solid var(--notice-border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--link);
+    text-decoration: none;
+  }
+  .archive-notice .project-links { font-weight: 600; }
+
+  h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 6px; }
+  h2 { font-size: 1.45rem; line-height: 1.3; margin: 40px 0 12px; }
+  h3 { font-size: 1.2rem; margin: 30px 0 10px; }
+  h4 { font-size: 1.05rem; margin: 24px 0 8px; }
+  .title-ja { color: var(--muted); font-size: 1.05rem; margin: 0 0 14px; }
+
+  .meta { color: var(--muted); font-size: 0.95rem; margin-bottom: 24px; }
+  .meta .author { color: var(--fg); font-weight: 600; }
+  .meta { display: flex; flex-wrap: wrap; gap: 2px 0; }
+  .meta > span { white-space: nowrap; }
+  .meta > span + span::before { content: "·"; margin: 0 8px; }
+
+  figure { margin: 24px 0; }
+  figure img { display: block; margin: 0 auto; border-radius: 4px; }
+  /* The NICT time-code PNG has a transparent background: keep diagrams on white in both themes. */
+  figure img.diagram { border: 1px solid var(--border); background: #fff; }
+  figure.photos { display: grid; gap: 12px; }
+  figcaption { color: var(--muted); font-size: 0.9rem; text-align: center; margin-top: 8px; }
+
+  .table-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 6px 14px; vertical-align: top; }
+  thead th { background: var(--surface); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.range { text-align: center; white-space: nowrap; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.88em;
+  }
+  :not(pre) > code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    line-height: 1.5;
+    font-size: 0.95rem;
+    margin: 16px 0;
+  }
+  pre code { font-size: 0.85rem; }
+
+  sup.fn { font-size: 0.72em; line-height: 0; }
+  sup.fn a { text-decoration: none; }
+  sup.fn a::before { content: "["; }
+  sup.fn a::after { content: "]"; }
+
+  .tn {
+    margin: 16px 0;
+    padding: 10px 14px;
+    background: var(--tn-bg);
+    border: 1px dashed var(--tn-border);
+    border-radius: 6px;
+    font-size: 0.93rem;
+  }
+  .tn .tn-label {
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .tn p { margin: 0 0 6px; }
+  .tn p:last-child { margin-bottom: 0; }
+  .tn ul { margin: 4px 0 0; padding-left: 20px; }
+  .tn dl { margin: 4px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; }
+  .tn dt { font-weight: 600; }
+  .tn dd { margin: 0; }
+
+  .footnotes { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 0.9rem; }
+  .footnotes h2 { font-size: 1.15rem; margin-top: 0; }
+  .footnotes ol { padding-left: 28px; margin: 0; }
+  .footnotes li { margin-bottom: 4px; }
+  .footnotes li:target { background: var(--notice-bg); border-radius: 4px; }
+  .footnotes .back { text-decoration: none; margin-left: 4px; }
+
+  .tags { margin: 36px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tags a {
+    font-size: 0.82rem;
+    padding: 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--muted);
+    background: var(--surface);
+  }
+
+  .project-note {
+    margin-top: 40px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--accent);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .project-note .label {
+    margin: 0 0 4px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .project-note h2 { font-size: 1.3rem; margin: 0 0 10px; }
+  .project-note p { margin: 0 0 12px; }
+  .project-note p:last-child { margin-bottom: 0; }
+  .note-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px; }
+  .project-note .demo-link,
+  .project-note .repo-link {
+    display: inline-block;
+    padding: 8px 16px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .project-note .demo-link { background: var(--accent); color: var(--bg); }
+  .project-note .repo-link { color: var(--link); }
+
+  .site-footer {
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .site-footer .inner { max-width: 760px; margin: 0 auto; padding: 20px 16px 32px; }
+  .site-footer p { margin: 0 0 8px; }
+
+  @media (max-width: 520px) {
+    body { font-size: 16px; }
+    h1 { font-size: 1.6rem; }
+    pre code { font-size: 0.8rem; }
+    .tn dl { grid-template-columns: 1fr; }
+    .tn dd { margin-bottom: 4px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="https://qiita.com/BotanicFields">BotanicFields on Qiita</a>
+    <span class="lang">Original: <a href="https://qiita.com/BotanicFields/items/a78c80f947388caf0d36" lang="ja">日本語 (Qiita)</a></span>
+  </div>
+</header>
+
+<main>
+  <aside class="archive-notice" role="note" aria-label="About this translation">
+    <p><strong>This is an unofficial English translation, not the original.</strong> The article below was written in Japanese by
+      <strong>BotanicFields</strong> and published on Qiita as
+      <span lang="ja">「標準電波 JJY もどきを M5StickC / M5Atom の Ticker で生成する」</span>
+      (“Generating a simulated JJY time signal with Ticker on the M5StickC / M5Atom”).
+      All credit and all rights belong to the author.</p>
+    <p><a class="original-link" href="https://qiita.com/BotanicFields/items/a78c80f947388caf0d36">Read the original article on Qiita (Japanese) →</a></p>
+    <p>The translation may contain mistakes. Where anything here is unclear or differs from the original, the
+      <a href="https://qiita.com/BotanicFields/items/a78c80f947388caf0d36">original article</a> is authoritative: please refer to it and link to it.</p>
+    <p>Translated on 16 November 2026 from the version last updated 27 April 2023 (first published 26 July 2020). The text, code, figures,
+      photos and links are the author's; only the translation and page layout are new. The code is reproduced unchanged
+      (its comments were already in English). Footnotes are numbered in order of appearance, as on Qiita, and links to Japanese pages are marked
+      “(in Japanese)”. Notes added in translation are boxed and labelled <em>Translator's note</em>; the
+      <a href="#jjysim-project">note at the end</a> is the JJYSim project's, not the author's.</p>
+    <p class="project-links">JJYSim project: <a href="https://github.com/tunlezah/JJYSim">github.com/tunlezah/JJYSim</a>
+      · <a href="../web-ui-demo/">Web UI demo</a>
+      · <a href="../">Tomokatsu Yukishita's build write-up (archived copy)</a></p>
+  </aside>
+
+  <article>
+    <h1>Generating a Simulated JJY Time Signal with Ticker on the M5StickC / M5Atom</h1>
+    <p class="title-ja" lang="ja">標準電波 JJY もどきを M5StickC / M5Atom の Ticker で生成する</p>
+    <div class="meta">
+      <span class="author"><a href="https://qiita.com/BotanicFields">BotanicFields</a></span>
+      <span>First published 2020/07/26</span>
+      <span>Last updated 2023/04/27</span>
+    </div>
+
+    <h2 id="introduction">1. Introduction</h2>
+    <p>Repeaters are sold to rescue radio-controlled clocks that sit where the radio signal can't reach them<sup class="fn" id="fnref-1"><a href="#fn-1" aria-label="Footnote 1">1</a></sup><sup class="fn" id="fnref-2"><a href="#fn-2" aria-label="Footnote 2">2</a></sup>, and electronics kits are
+      on sale too<sup class="fn" id="fnref-3"><a href="#fn-3" aria-label="Footnote 3">3</a></sup>. Besides the approach of receiving the standard time signal and passing it straight on, it is also common to generate a
+      simulated standard time signal from a different source, such as NTP or GPS. As long as it stays within the bounds of transmitting a very weak
+      radio signal based on time obtained over NTP, this can be done compactly and cheaply with a Wi-Fi IoT device such as the M5StickC<sup class="fn" id="fnref-4"><a href="#fn-4" aria-label="Footnote 4">4</a></sup>.
+      Drawing on earlier examples<sup class="fn" id="fnref-5"><a href="#fn-5" aria-label="Footnote 5">5</a></sup><sup class="fn" id="fnref-6"><a href="#fn-6" aria-label="Footnote 6">6</a></sup>, I'm going to enjoy learning about programming and printed circuit boards along the way.</p>
+    <div class="tn" role="note"><span class="tn-label">Translator's note</span>
+      <p>“Very weak radio signal” translates <span lang="ja">微弱電波</span> (<i>bijaku denpa</i>): in Japan, emissions weak enough to fall under
+        this category of the Radio Act can be transmitted without a licence.</p>
+    </div>
+
+    <h2 id="approach">2. Approach</h2>
+    <p>The specification of the standard time signal is published by NICT<sup class="fn" id="fnref-7"><a href="#fn-7" aria-label="Footnote 7">7</a></sup>. I'll generate a simulation of the normal time code it describes.</p>
+    <figure id="fig-timecode">
+      <a href="../assets/qiita-ticker-timecode.png"><img class="diagram" src="../assets/qiita-ticker-timecode.png" width="823" height="534"
+           alt="Diagram of the 60-second JJY time code, seconds 0 to 59 in two rows, each second drawn as a pulse: red for markers, yellow for binary 1, green for binary 0. Labels are in Japanese."></a>
+      <figcaption>Time code during normal operation (other than at 15 and 45 minutes past each hour), example. Source: NICT<sup class="fn" id="fnref-8"><a href="#fn-8" aria-label="Footnote 8">8</a></sup></figcaption>
+    </figure>
+    <div class="tn" role="note"><span class="tn-label">Translator's note</span>
+      <p>The labels in this NICT diagram are in Japanese. Red pulses are markers (M, P0 to P5), yellow pulses are binary 1 and green pulses are binary 0;
+        the numbers under the pulses are the weights of the bits. The Japanese labels mean:</p>
+      <dl>
+        <dt lang="ja">秒</dt><dd>seconds</dd>
+        <dt lang="ja">分</dt><dd>minute</dd>
+        <dt lang="ja">時</dt><dd>hour</dd>
+        <dt lang="ja">1月1日からの通算日</dt><dd>day of the year, counted from 1 January</dd>
+        <dt lang="ja">パリティ</dt><dd>parity (PA1: hour, PA2: minute)</dd>
+        <dt lang="ja">予備ビット</dt><dd>spare bits (SU1, SU2)</dd>
+        <dt lang="ja">年（西暦下２桁）</dt><dd>year (last two digits of the Gregorian year)</dd>
+        <dt lang="ja">曜日</dt><dd>day of the week</dd>
+        <dt lang="ja">うるう秒</dt><dd>leap second (LS1, LS2)</dd>
+      </dl>
+    </div>
+    <p>In the time code, one of the following pulse widths is transmitted every second:</p>
+    <ul>
+      <li>0.2 s ±5 ms: marker (M), position markers (P0 to P5)</li>
+      <li>0.5 s ±5 ms: binary 1</li>
+      <li>0.8 s ±5 ms: binary 0</li>
+    </ul>
+    <p>At each 0.1-second tick, what to do with the JJY signal (turn it on, turn it off, or do nothing) is uniquely determined by the date at that
+      moment (year, month, day, day of the week) and the time (hour, minute, second). A timer interrupt can be used to get the 0.1-second timing.
+      Implemented on this principle, all the processing can be completed within the interrupt alone, which also makes it possible to run in the
+      background. Pulses can also be output starting partway through a time code, which makes it easy to check that it has started working.</p>
+
+    <h2 id="timer-interrupts">3. Timer interrupts</h2>
+    <p>I chose the M5StickC / M5Atom as the device and use the Arduino IDE<sup class="fn" id="fnref-9"><a href="#fn-9" aria-label="Footnote 9">9</a></sup> as the development environment. For the timer interrupt
+      I use Ticker<sup class="fn" id="fnref-10"><a href="#fn-10" aria-label="Footnote 10">10</a></sup>. A hardware timer interrupt<sup class="fn" id="fnref-11"><a href="#fn-11" aria-label="Footnote 11">11</a></sup> could probably be used as well, but it is overkill for this purpose.</p>
+
+    <h3 id="ticker">Ticker</h3>
+    <p>Ticker, provided as a library for the Arduino IDE, can't be expected to match the accuracy of a hardware timer interrupt, but it is
+      easy to use by following the sample programs. Here the processing runs on a 100 ms cycle, and the accuracy required by NICT's specification is
+      ±5 ms, so Ticker can be said to be just right for the job<sup class="fn" id="fnref-12"><a href="#fn-12" aria-label="Footnote 12">12</a></sup>.</p>
+
+    <h3 id="hardware-timer-interrupts">Hardware timer interrupts</h3>
+    <p>The real-world performance of hardware timer interrupts on the ESP32 is covered in detail in explanatory articles<sup class="fn" id="fnref-13"><a href="#fn-13" aria-label="Footnote 13">13</a></sup><sup class="fn" id="fnref-14"><a href="#fn-14" aria-label="Footnote 14">14</a></sup>.
+      They can handle periods shorter than a millisecond with little latency. As an application example, there is a case where the dynamic
+      drive of a 16-segment LED display was handled by a hardware interrupt with a 2 ms period<sup class="fn" id="fnref-15"><a href="#fn-15" aria-label="Footnote 15">15</a></sup>. Using them sets a higher bar, though:
+      among other things, you also need some knowledge of FreeRTOS<sup class="fn" id="fnref-16"><a href="#fn-16" aria-label="Footnote 16">16</a></sup><sup class="fn" id="fnref-17"><a href="#fn-17" aria-label="Footnote 17">17</a></sup>.</p>
+
+    <h2 id="coding">4. Coding</h2>
+
+    <h3 id="ticker-definition">4.1 Defining the Ticker</h3>
+    <p>Using the Ticker class, the processing that calls the function <code>TcoGen()</code>, which generates the JJY signal (TCO: Time Code Output),
+      every 100 ms can be coded as follows.</p>
+    <pre><code class="language-cpp">#include &lt;Ticker.h&gt;
+
+// Ticker for TCO(Time Code Output) generation
+const int ticker_period = 100;  // 100ms
+Ticker    tk;
+
+void setup() {
+  M5.begin();
+
+  // start Ticker for TCO
+  tk.attach_ms(ticker_period, TcoGen);
+}  </code></pre>
+
+    <h3 id="generating-the-jjy-signal">4.2 Generating the JJY signal</h3>
+    <p><code>TcoGen()</code>, which is called every 100 ms, checks the current time (to 0.1 seconds) and, when it is at 0.0, 0.2, 0.5 or 0.8 seconds,
+      calls the JJY signal handling. The current time to 0.1 seconds is obtained in microseconds from the <code>tv_usec</code> member of the
+      <code>timeval</code> structure. At the same time, the date and time information is also fetched with <code>getlocaltime()</code>.</p>
+    <pre><code class="language-cpp">struct tm      td;  // time of day .. year, month, day, hour, minute, second
+struct timeval tv;  // time value .. milli-second. micro-second
+
+// main task of TCO
+void TcoGen()
+{
+  if (!getLocalTime(&amp;td)) {
+    Serial.println("[TCO]Failed to obtain time");
+    return;
+  }
+
+  gettimeofday(&amp;tv, NULL);
+  int tv_100ms = tv.tv_usec / 100000;
+  switch (tv_100ms) {
+  case 0: Tco000ms(); break;
+  case 2: Tco200ms(); break;
+  case 5: Tco500ms(); break;
+  case 8: Tco800ms(); break;
+  default: break;
+  }
+}</code></pre>
+    <p>Below is the handling for each of 0.0, 0.2, 0.5 and 0.8 seconds of the current time (to 0.1 seconds):</p>
+    <ul>
+      <li>At 0.0 s, turn the JJY signal on, whatever the second.</li>
+      <li>At 0.2 s, if the current second is one in which a marker is sent, turn the JJY signal off.</li>
+      <li>At 0.5 s, if, according to the current date and time, the current second is one in which a 1 is sent, turn the JJY signal off.</li>
+      <li>At 0.8 s, turn the JJY signal off, whatever the second.</li>
+    </ul>
+    <pre><code class="language-cpp">const int marker = 0xff;  // marker code which TcoValue() returns 
+
+// TCO task at every 0ms
+void Tco000ms()
+{
+  TcOn();
+}
+
+// TCO task at every 200ms
+void Tco200ms()
+{
+  if (TcoValue() == marker)
+    TcOff();
+}
+
+// TCO task at every 500ms
+void Tco500ms()
+{
+  if (TcoValue() != 0)
+    TcOff();
+}
+
+// TCO task at every 800ms
+void Tco800ms()
+{
+  TcOff();
+}</code></pre>
+    <p>Here is the body of the function <code>TcoValue()</code>, which, from the date and time, returns the signal (marker, 1 or 0) to send in the
+      current second. It is a simple construction: just 60 case statements in a row.</p>
+    <pre><code class="language-cpp">const int marker = 0xff;  // marker code which TcoValue() returns 
+
+// TCO value
+//   marker, 1:not zero, 0:zero
+int TcoValue()
+{
+  int bcd_hour = Int3bcd(td.tm_hour);
+  int parity_bcd_hour = Parity8(bcd_hour);
+
+  int bcd_minute = Int3bcd(td.tm_min);
+  int parity_bcd_minute = Parity8(bcd_minute);
+
+  int year = td.tm_year + 1900;
+  int bcd_year = Int3bcd(year);
+
+  static const int days_of_month[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+  int days = td.tm_mday;
+  for (int i = 0; i &lt; td.tm_mon; ++i)  // td.tm_mon starts from 0
+    days += days_of_month[i];
+  if ((td.tm_mon &gt;= 2) &amp;&amp; (((year % 4 == 0) &amp;&amp; (year % 100 != 0)) || (year % 400 == 0)))
+    ++days;
+  int bcd_days = Int3bcd(days);
+
+  int day_of_week = td.tm_wday;
+
+  int tco;
+  switch (td.tm_sec) {
+  case  0: tco = marker;              break;
+  case  1: tco = bcd_minute &amp; 0x40;   break;
+  case  2: tco = bcd_minute &amp; 0x20;   break;
+  case  3: tco = bcd_minute &amp; 0x10;   break;
+  case  4: tco = 0;                   break;
+  case  5: tco = bcd_minute &amp; 0x08;   break;
+  case  6: tco = bcd_minute &amp; 0x04;   break;
+  case  7: tco = bcd_minute &amp; 0x02;   break;
+  case  8: tco = bcd_minute &amp; 0x01;   break;
+  case  9: tco = marker;              break;
+
+  case 10: tco = 0;                   break;
+  case 11: tco = 0;                   break;
+  case 12: tco = bcd_hour &amp; 0x20;     break;
+  case 13: tco = bcd_hour &amp; 0x10;     break;
+  case 14: tco = 0;                   break;
+  case 15: tco = bcd_hour &amp; 0x08;     break;
+  case 16: tco = bcd_hour &amp; 0x04;     break;
+  case 17: tco = bcd_hour &amp; 0x02;     break;
+  case 18: tco = bcd_hour &amp; 0x01;     break;
+  case 19: tco = marker;              break;
+  
+  case 20: tco = 0;                   break;
+  case 21: tco = 0;                   break;
+  case 22: tco = bcd_days &amp; 0x200;    break;
+  case 23: tco = bcd_days &amp; 0x100;    break;
+  case 24: tco = 0;                   break;
+  case 25: tco = bcd_days &amp; 0x080;    break;
+  case 26: tco = bcd_days &amp; 0x040;    break;
+  case 27: tco = bcd_days &amp; 0x020;    break;
+  case 28: tco = bcd_days &amp; 0x010;    break;
+  case 29: tco = marker;              break;
+
+  case 30: tco = bcd_days &amp; 0x008;    break;
+  case 31: tco = bcd_days &amp; 0x004;    break;
+  case 32: tco = bcd_days &amp; 0x002;    break;
+  case 33: tco = bcd_days &amp; 0x001;    break;
+  case 34: tco = 0;                   break;
+  case 35: tco = 0;                   break;
+  case 36: tco = parity_bcd_hour;     break;
+  case 37: tco = parity_bcd_minute;   break;
+  case 38: tco = 0;                   break;
+  case 39: tco = marker;              break;
+
+  case 40: tco = 0;                   break;
+  case 41: tco = bcd_year &amp; 0x80;     break;
+  case 42: tco = bcd_year &amp; 0x40;     break;
+  case 43: tco = bcd_year &amp; 0x20;     break;
+  case 44: tco = bcd_year &amp; 0x10;     break;
+  case 45: tco = bcd_year &amp; 0x08;     break;
+  case 46: tco = bcd_year &amp; 0x04;     break;
+  case 47: tco = bcd_year &amp; 0x02;     break;
+  case 48: tco = bcd_year &amp; 0x01;     break;
+  case 49: tco = marker;              break;
+  
+  case 50: tco = day_of_week &amp; 0x04;  break;
+  case 51: tco = day_of_week &amp; 0x02;  break;
+  case 52: tco = day_of_week &amp; 0x01;  break;
+  case 53: tco = 0;                   break;
+  case 54: tco = 0;                   break;
+  case 55: tco = 0;                   break;
+  case 56: tco = 0;                   break;
+  case 57: tco = 0;                   break;
+  case 58: tco = 0;                   break;
+  case 59: tco = marker;              break;
+  default: tco = 0;                   break;
+  }
+  return tco;
+}
+
+int Int3bcd(int a)
+{
+  return (a % 10) + (a / 10 % 10 * 16) + (a / 100 % 10 * 256);
+}
+
+int Parity8(int a)
+{
+  int pa = a;
+  for (int i = 1; i &lt; 8; ++i) {
+    pa += a &gt;&gt; i;
+  }
+  return pa % 2;
+}</code></pre>
+
+    <h3 id="generating-the-40khz-signal">4.3 Generating the 40 kHz signal</h3>
+    <p>I use the LEDC library provided with the Arduino IDE for the ESP32. There is a reference article on the LEDC parameters<sup class="fn" id="fnref-18"><a href="#fn-18" aria-label="Footnote 18">18</a></sup>.</p>
+    <p>The LEDC signal is turned on and off by changing the duty setting. In PWM, frequent duty changes are well within what it is designed for.
+      Signal off is 0% duty. For monitoring, the M5StickC's built-in LED is switched on and off at the same time: <code>LOW</code> is on,
+      <code>HIGH</code> is off.</p>
+    <pre><code class="language-cpp">// PWM for TCO signal
+const uint8_t  ledc_pin        = 26;
+const uint8_t  ledc_channel    = 0;
+const double   ledc_frequency  = 40000;  // 40kHz
+const uint8_t  ledc_resolution = 8;      // 2^8 = 256
+const uint32_t ledc_duty_on    = 128;    // 50% 
+const uint32_t ledc_duty_off   = 0;      // 0 
+
+// for monitoring
+const int led_pin    = 10;    // led_pin to monitor
+bool      led_enable = true;  // 
+
+void setup()
+{
+  M5.begin();
+
+  // start TCO signal source(40kHz)
+  ledcSetup(ledc_channel, ledc_frequency, ledc_resolution);
+  ledcAttachPin(ledc_pin, ledc_channel);
+
+  // for monitoring
+  pinMode(led_pin, OUTPUT);
+}
+
+void TcOn()
+{
+  ledcWrite(ledc_channel, ledc_duty_on);
+  if (led_enable)
+    digitalWrite(led_pin, LOW);
+}
+
+void TcOff()
+{
+  ledcWrite(ledc_channel, ledc_duty_off);
+  digitalWrite(led_pin, HIGH);
+}</code></pre>
+
+    <h3 id="other">4.4 Other</h3>
+
+    <h4 id="wifi-settings">Wi-Fi settings</h4>
+    <p>I use WiFiManager<sup class="fn" id="fnref-19"><a href="#fn-19" aria-label="Footnote 19">19</a></sup>. You need to install the following library with the Library Manager:</p>
+    <ul>
+      <li>WiFiManager by tzapu, tablatronix</li>
+    </ul>
+    <p>There are many similar libraries, but this one has by far the most stars on GitHub. I'm using “Release v2.0.3-alpha Development”.
+      The fact that it is an alpha version does bother me a little. For how to connect to Wi-Fi, please see WiFiManager's documentation on GitHub.</p>
+    <pre><code class="language-cpp">#include &lt;WiFi.h&gt;
+#include &lt;WiFiManager.h&gt; // https://github.com/tzapu/WiFiManager
+
+// initialize Wifimanager
+WiFiManager wm;
+
+void setup()
+{
+  M5.begin();
+
+  // connect Wifi
+  // wm.resetSettings();  // for testing
+  if (!wm.autoConnect())
+    Serial.println("Failed to connect");
+  else
+    Serial.println("connected...yeey :)");
+}</code></pre>
+
+    <h4 id="ntp-settings">NTP settings</h4>
+    <p>These are the usual NTP settings. With these settings, time synchronisation over NTP apparently runs once an hour<sup class="fn" id="fnref-20"><a href="#fn-20" aria-label="Footnote 20">20</a></sup>.</p>
+    <pre><code class="language-cpp">// for NTP
+const int   gmt_offset = 3600 * 9;  // JST-9
+const int   daylight   = 3600 * 0;  // No daylight time
+const char* ntp_server = "pool.ntp.org";
+struct tm      td;  // time of day .. year, month, day, hour, minute, second
+
+void setup()
+{
+  M5.begin();
+
+  // start NTP
+  configTime(gmt_offset, daylight, ntp_server);
+  while (!getLocalTime(&amp;td)) {
+    Serial.println("Waiting to obtain time");
+    delay(100);
+  }
+  Serial.println(&amp;td, "%A %B %d %Y %H:%M:%S");  
+}</code></pre>
+
+    <h2 id="ticker-period-variation">5. Variation in the Ticker period</h2>
+    <p>At every Ticker interrupt, I tallied the variation in the time elapsed since the previous interrupt. An elapsed time of 100 ms is taken
+      as the centre value, 0. (Measured over about 62 hours.)</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Range</th><th>Count</th></tr></thead>
+        <tbody>
+          <tr><td class="range">up to −50 ms</td><td class="num">17</td></tr>
+          <tr><td class="range">−50 ms to −5 ms</td><td class="num">11</td></tr>
+          <tr><td class="range">−5 ms to −0.5 ms</td><td class="num">19,337</td></tr>
+          <tr><td class="range">−0.5 ms to −0.05 ms</td><td class="num">21,813</td></tr>
+          <tr><td class="range">−0.05 ms to 0.05 ms</td><td class="num">2,159,817</td></tr>
+          <tr><td class="range">0.05 ms to 0.5 ms</td><td class="num">22,338</td></tr>
+          <tr><td class="range">0.5 ms to 5 ms</td><td class="num">18,773</td></tr>
+          <tr><td class="range">5 ms to 50 ms</td><td class="num">11</td></tr>
+          <tr><td class="range">50 ms and over</td><td class="num">19</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li>Mean: −0.0000853 ms</li>
+      <li>Standard deviation: 1.1360784 ms</li>
+      <li>Minimum: −902.830 ms</li>
+      <li>Maximum: 929.487 ms</li>
+    </ul>
+    <p>Cases where the Ticker period was off by more than ±5 ms occurred 58 times in 62 hours. Values beyond ±900 ms were also recorded for the
+      maximum and minimum. My guess is that the Ticker period is disturbed because it competes with system processing, including NTP and Wi-Fi,
+      and that system processing is delayed depending on network conditions. Even so, 99.997% of periods are within the specified range (±5 ms),
+      and the radio-controlled clock retries on its side as well, so in practice it doesn't seem to be a problem. From the standard deviation,
+      ±6σ = ±6.83 ms, which does not fit within ±5 ms. It can't be called industry-leading quality.</p>
+
+    <h2 id="hardware">6. Hardware</h2>
+    <p>The 40 kHz simulated JJY signal is output from GPIO26 of the M5StickC. Connect GPIO26 to GND with a wire, with a resistor of about
+      1 kΩ inserted partway along it. A simulated JJY signal current of about 3 mA flows. If you run the wire very close to the
+      radio-controlled clock, the clock picks up the magnetic field produced around the wire. I've uploaded a video of the clock being set<sup class="fn" id="fnref-21"><a href="#fn-21" aria-label="Footnote 21">21</a></sup>.</p>
+    <figure>
+      <img src="../assets/qiita-ticker-wire-clock.webp" width="1200" height="674" loading="lazy"
+           alt="An orange M5StickC on a blue cloth, connected by green and yellow wires with crocodile clips to a loop of wire, with a SEIKO digital radio-controlled clock behind showing 8:14 on 7/26">
+    </figure>
+    <figure>
+      <img src="../assets/qiita-ticker-wire-loop.webp" width="1200" height="900" loading="lazy"
+           alt="Close-up of the M5StickC header: a green wire on the GND pin and a yellow wire on the G26 pin, with a small resistor held between two crocodile clips">
+    </figure>
+
+    <h3 id="improving-the-waveform">6.1 Improving the waveform</h3>
+    <p>The 40 kHz signal output by the GPIO is a square wave and contains a large amount of unwanted frequency content. For continuous use,
+      I'd like to reduce the noise as far as possible and get closer to a sine wave, so a low-pass filter removes the high-frequency components.
+      I chose the resistor and capacitor values of the low-pass filter while watching the waveform on an oscilloscope. Even with the cutoff frequency
+      set around 40 kHz, the waveform didn't become rounded enough. On the assumption that the signal is amplified afterwards, I used two stages
+      with a cutoff frequency of about 16 kHz.</p>
+    <figure>
+      <a href="../assets/qiita-ticker-schematic.png"><img class="diagram" src="../assets/qiita-ticker-schematic.png" width="2245" height="1587" loading="lazy"
+           alt="KiCad schematic of BF-018, JJY antenna for M5StickC: GPIO26 through a two-stage RC low-pass filter (1 kΩ, 10 nF each) into an AD8532 op-amp stage, then through 100 nF and 510 Ω to the loop coil L1"></a>
+    </figure>
+    <p>The observed waveforms:</p>
+    <figure>
+      <a href="../assets/qiita-ticker-scope.png"><img src="../assets/qiita-ticker-scope.png" width="800" height="480" loading="lazy"
+           alt="Oscilloscope screen: a yellow 40 kHz square wave at the top, a small light-blue triangular-looking wave in the middle and a larger purple near-sine wave at the bottom"></a>
+    </figure>
+    <ul>
+      <li>CH1 (yellow): GPIO26 – 40 kHz square wave</li>
+      <li>CH2 (light blue): input of the amplifier after the two low-pass filter stages – 440 mV amplitude, centred on 2.45 V</li>
+      <li>CH3 (purple): voltage across the resistor just before the loop antenna – 2.74 V amplitude, centred on ground</li>
+    </ul>
+    <p>CH2's 0 V position is at the same height as CH3's, so they overlap.</p>
+
+    <h4 id="alternative-hardware-configuration">An alternative hardware configuration</h4>
+    <p>Instead of outputting the JJY signal directly from the GPIO, another possible configuration is to have the GPIO output the same level signal
+      as the monitor LED and use it to control an external analog switch that turns a 40 kHz signal on and off. The 40 kHz source could be output
+      continuously from another GPIO and wave-shaped, or a good-quality external oscillator could be used. The analog switch could either switch
+      the 40 kHz signal on and off directly or control the gain of an amplifier.</p>
+
+    <h3 id="printed-circuit-board">6.2 Printed circuit board</h3>
+    <p>I made a printed circuit board that holds the circuit above, with the antenna's loop pattern built into the board itself. I designed it in
+      KiCad<sup class="fn" id="fnref-22"><a href="#fn-22" aria-label="Footnote 22">22</a></sup>, and for the loop pattern I used a publicly available Python tool<sup class="fn" id="fnref-23"><a href="#fn-23" aria-label="Footnote 23">23</a></sup><sup class="fn" id="fnref-24"><a href="#fn-24" aria-label="Footnote 24">24</a></sup>.</p>
+    <p>I've put videos of setting the time with the board on YouTube<sup class="fn" id="fnref-25"><a href="#fn-25" aria-label="Footnote 25">25</a></sup><sup class="fn" id="fnref-26"><a href="#fn-26" aria-label="Footnote 26">26</a></sup><sup class="fn" id="fnref-27"><a href="#fn-27" aria-label="Footnote 27">27</a></sup>. The best placement seems to be on the line
+      extending lengthwise from the radio-controlled clock (or rather, from the ferrite-bar antenna inside it), with the loop pattern at right angles
+      to that line. The loop pattern and the winding of the ferrite-bar antenna are then parallel, and the magnetic coupling is at its maximum.
+      I was able to set the clock from a distance of 70 cm; at 90 cm it appears to be difficult. Facing the front of the clock, it could set the
+      time at a distance of 30 cm, but at 50 cm it became difficult.</p>
+    <figure class="photos">
+      <img src="../assets/qiita-ticker-pcb-4794.webp" width="1200" height="900" loading="lazy"
+           alt="Front of the green BF-018 V01L02 board, “JJY Antenna for M5StickC, Copyright 2020, BotanicFields, Inc.”, with a spiral loop antenna pattern, an op-amp, passive parts and an 8-pin M5StickC header">
+      <img src="../assets/qiita-ticker-pcb-4793.webp" width="1200" height="900" loading="lazy"
+           alt="Back of the board, showing the spiral loop pattern and the right-angle 8-pin header labelled VIN, 3V3, BAT, G0, G36, G26, 5V, GND">
+      <img src="../assets/qiita-ticker-pcb-4784.webp" width="900" height="1200" loading="lazy"
+           alt="The board standing upright with an orange M5StickC plugged in by USB; its screen shows BotanicFields, Inc., an IP address and the date and time">
+      <img src="../assets/qiita-ticker-pcb-4786.webp" width="1200" height="900" loading="lazy"
+           alt="An orange M5StickC fixed flat on the back of the board with a cable tie; its screen shows BotanicFields, Inc., the Wi-Fi network, an IP address, “L-on” and Wednesday, August 12 2020, 13:12:18">
+    </figure>
+
+    <h2 id="conclusion">7. Conclusion</h2>
+    <p>I've put the code on GitHub<sup class="fn" id="fnref-28"><a href="#fn-28" aria-label="Footnote 28">28</a></sup>. The printed circuit board is sold on consignment<sup class="fn" id="fnref-29"><a href="#fn-29" aria-label="Footnote 29">29</a></sup>. This turned out to be a pretty practical
+      build. My thanks to everyone whose work I drew on.</p>
+
+    <h2 id="postscript">8. Postscript</h2>
+    <p>I've also made code and a printed circuit board for the M5Atom<sup class="fn" id="fnref-30"><a href="#fn-30" aria-label="Footnote 30">30</a></sup><sup class="fn" id="fnref-31"><a href="#fn-31" aria-label="Footnote 31">31</a></sup><sup class="fn" id="fnref-32"><a href="#fn-32" aria-label="Footnote 32">32</a></sup>. This board is also sold on consignment<sup class="fn" id="fnref-33"><a href="#fn-33" aria-label="Footnote 33">33</a></sup>.</p>
+
+    <section class="footnotes" aria-labelledby="footnotes-title">
+      <h2 id="footnotes-title">Footnotes</h2>
+      <ol>
+        <li id="fn-1"><a href="https://eleshop.jp/shop/e/eP18NTP/">Kyoritsu Eleshop – Special feature: repeater (time-setting) series for radio-controlled clocks <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-1" aria-label="Back to reference 1">↩</a></li>
+        <li id="fn-2"><a href="https://mizuho-lab.com/jjy/jjy_repeater.html">Mizuho Communications Laboratory – JJY repeater for radio-controlled clocks <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-2" aria-label="Back to reference 2">↩</a></li>
+        <li id="fn-3"><a href="http://www.ys-labo.com/JJY%20Simulator%20Kit/JJY%20sum.html">YS Electronics Lab – JJY Japan Standard Time simulator kit <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-3" aria-label="Back to reference 3">↩</a></li>
+        <li id="fn-4"><a href="https://docs.m5stack.com/#/en/core/m5stickc">M5Stack Docs – M5StickC</a> <a class="back" href="#fnref-4" aria-label="Back to reference 4">↩</a></li>
+        <li id="fn-5"><a href="https://qiita.com/fumi38g/items/a0b96351364f05f84419">Qiita @fumi38g – JJY simulator <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-5" aria-label="Back to reference 5">↩</a></li>
+        <li id="fn-6"><a href="https://www.mgo-tec.com/blog-entry-m5stack-jjy-watch-yhaoo-news.html">mgo-tec Electronics – Adding a JJY radio-clock transmitter module to an M5Stack Yahoo News / weather forecast / clock and running it with multitasking <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-6" aria-label="Back to reference 6">↩</a></li>
+        <li id="fn-7"><a href="https://jjy.nict.go.jp/jjy/trans/index.html">NICT – Operating status of the standard time signal (radio clocks) – How the standard time signal is transmitted <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-7" aria-label="Back to reference 7">↩</a></li>
+        <li id="fn-8"><a href="https://jjy.nict.go.jp/jjy/trans/timecode1.html">NICT – Time code during normal operation (other than at 15 and 45 minutes past each hour), example <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-8" aria-label="Back to reference 8">↩</a></li>
+        <li id="fn-9"><a href="https://docs.m5stack.com/#/en/arduino/arduino_home_page">M5Stack Docs – Arduino IDE</a> <a class="back" href="#fnref-9" aria-label="Back to reference 9">↩</a></li>
+        <li id="fn-10"><a href="https://github.com/espressif/arduino-esp32/tree/master/libraries/Ticker">GitHub espressif – Ticker</a> <a class="back" href="#fnref-10" aria-label="Back to reference 10">↩</a></li>
+        <li id="fn-11"><a href="https://github.com/espressif/arduino-esp32/tree/master/cores/esp32">GitHub espressif – esp32-hal-timer.h, esp32-hal-timer.c</a> <a class="back" href="#fnref-11" aria-label="Back to reference 11">↩</a></li>
+        <li id="fn-12"><a href="https://lang-ship.com/blog/work/esp32-ticker/">Lang-Ship – Looking into Ticker, the ESP32 timer class <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-12" aria-label="Back to reference 12">↩</a></li>
+        <li id="fn-13"><a href="https://interface.cqpub.co.jp/magazine/202001/">CQ Publishing – Interface, January 2020 issue, special feature, chapter 4: A study of real-time processing on the ESP32 <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-13" aria-label="Back to reference 13">↩</a></li>
+        <li id="fn-14"><a href="https://www.slideshare.net/ciniml/esp32-220999594">Kenta IDA – An introduction to the ESP32 special feature <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-14" aria-label="Back to reference 14">↩</a></li>
+        <li id="fn-15"><a href="https://www.slideshare.net/YoshiyukiUehara/how-to-make-gpio-signals-to-control-hardware-227027550">Yoshiyuki Uehara – How to make GPIO Signals to Control Hardware</a> <a class="back" href="#fnref-15" aria-label="Back to reference 15">↩</a></li>
+        <li id="fn-16"><a href="https://aws.amazon.com/jp/freertos/">Amazon – FreeRTOS <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-16" aria-label="Back to reference 16">↩</a></li>
+        <li id="fn-17"><a href="https://lang-ship.com/blog/work/esp32-timer/">Lang-Ship – Looking into high-precision timer interrupts on the ESP32 <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-17" aria-label="Back to reference 17">↩</a></li>
+        <li id="fn-18"><a href="https://qiita.com/BotanicFields/items/e74c449c0bef0820fcd1">Qiita: Using an Excel sheet to work out the resolution setting for LEDC (LED PWM Controller) on the ESP32 <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-18" aria-label="Back to reference 18">↩</a></li>
+        <li id="fn-19"><a href="https://github.com/tzapu/WiFiManager">GitHub – tzapu/WiFiManager</a> <a class="back" href="#fnref-19" aria-label="Back to reference 19">↩</a></li>
+        <li id="fn-20"><a href="https://qiita.com/h_nari/items/d0374d1e1e36b9d988c0">Qiita @h_nari – NTP setup on the ESP8266 takes one line <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-20" aria-label="Back to reference 20">↩</a></li>
+        <li id="fn-21"><a href="https://youtu.be/S_t3g5wqyh8">YouTube – JJY Simulator by M5StickC for a radio controlled clock</a> <a class="back" href="#fnref-21" aria-label="Back to reference 21">↩</a></li>
+        <li id="fn-22"><a href="https://kicad-pcb.org/">KiCad</a> <a class="back" href="#fnref-22" aria-label="Back to reference 22">↩</a></li>
+        <li id="fn-23"><a href="https://github.com/jedrzejboczar/kicad-coil-generator">GitHub – jedrzejboczar/kicad-coil-generator</a> <a class="back" href="#fnref-23" aria-label="Back to reference 23">↩</a></li>
+        <li id="fn-24"><a href="https://qiita.com/BotanicFields/items/d165617dfa303cef7ab2">Qiita @BotanicFields – Creating a loop antenna pattern in KiCad with Python <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-24" aria-label="Back to reference 24">↩</a></li>
+        <li id="fn-25"><a href="https://youtu.be/LF4P73INSro">YouTube – BF-018: JJY Antenna for M5StickC: longitudinal direction</a> <a class="back" href="#fnref-25" aria-label="Back to reference 25">↩</a></li>
+        <li id="fn-26"><a href="https://youtu.be/gpBwHdANwyw">YouTube – BF-018: JJY Antenna for M5StickC - with straight connecter</a> <a class="back" href="#fnref-26" aria-label="Back to reference 26">↩</a></li>
+        <li id="fn-27"><a href="https://youtu.be/ODojBB31gAc">YouTube – BF-018: JJY Antenna for M5StickC - with right-angle connecter</a> <a class="back" href="#fnref-27" aria-label="Back to reference 27">↩</a></li>
+        <li id="fn-28"><a href="https://github.com/botanicfields/BF-018">GitHub – botanicfields/BF-018</a> <a class="back" href="#fnref-28" aria-label="Back to reference 28">↩</a></li>
+        <li id="fn-29"><a href="https://www.switch-science.com/catalog/6527/">Switch Science – JJY antenna board for M5StickC <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-29" aria-label="Back to reference 29">↩</a></li>
+        <li id="fn-30"><a href="https://docs.m5stack.com/#/en/core/atom_lite">M5Atom Lite</a> <a class="back" href="#fnref-30" aria-label="Back to reference 30">↩</a></li>
+        <li id="fn-31"><a href="https://docs.m5stack.com/#/en/core/atom_matrix">M5Atom Matrix</a> <a class="back" href="#fnref-31" aria-label="Back to reference 31">↩</a></li>
+        <li id="fn-32"><a href="https://github.com/botanicfields/BF-018A">GitHub – botanicfields/BF-018A</a> <a class="back" href="#fnref-32" aria-label="Back to reference 32">↩</a></li>
+        <li id="fn-33"><a href="https://www.switch-science.com/catalog/6746/">Switch Science – JJY antenna board for M5Atom Lite/Matrix <span class="ja-note">(in Japanese)</span></a> <a class="back" href="#fnref-33" aria-label="Back to reference 33">↩</a></li>
+      </ol>
+    </section>
+
+    <nav class="tags" aria-label="Tags on Qiita">
+      <a href="https://qiita.com/tags/arduinoide">ArduinoIDE</a>
+      <a href="https://qiita.com/tags/ticker">TICKER</a>
+      <a href="https://qiita.com/tags/esp32">ESP32</a>
+      <a href="https://qiita.com/tags/m5stickc">M5StickC</a>
+      <a href="https://qiita.com/tags/m5atom">M5Atom</a>
+    </nav>
+  </article>
+
+  <section class="project-note" id="jjysim-project" aria-labelledby="jjysim-project-title">
+    <p class="label">From the JJYSim project · not part of the article above</p>
+    <h2 id="jjysim-project-title">About JJYSim</h2>
+    <p><a href="https://github.com/tunlezah/JJYSim">JJYSim</a> builds on BotanicFields' BF-018A code for the M5Atom (the project mentioned in
+      section 8) and runs on the ATOM Lite, ATOM Matrix and ATOMS3 Lite. Its Rev.5 firmware adds a web interface; the demo below runs that page
+      in your browser against an emulated device.</p>
+    <div class="note-actions">
+      <a class="demo-link" href="../web-ui-demo/">Try the web interface demo</a>
+      <a class="repo-link" href="https://github.com/tunlezah/JJYSim">JJYSim on GitHub</a>
+    </div>
+    <p>Also on this site: <a href="../">Tomokatsu Yukishita's “DIY JJY Simulator with M5StickC”</a> (archived copy), a build write-up that
+      uses BotanicFields' antenna board.</p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="inner">
+    <p>Original article © BotanicFields, published in Japanese on Qiita:
+      <a href="https://qiita.com/BotanicFields/items/a78c80f947388caf0d36">https://qiita.com/BotanicFields/items/a78c80f947388caf0d36</a>.
+      This page is an unofficial English translation with full attribution; figures and photos are the author's, and the time-code diagram is
+      NICT's, as credited in the article.</p>
+    <p>Kept by the JJYSim project: <a href="https://github.com/tunlezah/JJYSim">github.com/tunlezah/JJYSim</a>
+      · <a href="../web-ui-demo/">Web UI demo</a>
+      · <a href="../">Tomokatsu Yukishita's build write-up (archived copy)</a>.</p>
+    <p>If you are the author and would like this translation changed or taken down,
+      please <a href="https://github.com/tunlezah/JJYSim/issues">open an issue</a> and it will be done.</p>
+  </div>
+</footer>
+
+</body>
+</html>
