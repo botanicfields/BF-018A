@@ -232,7 +232,6 @@ pre{margin:0;max-height:20em;overflow:auto;background:#0b0d0f;border:1px solid v
 <dt>Server</dt><dd id="timeServer">-</dd>
 <dt>Last sync</dt><dd id="timeLast">-</dd>
 <dt>Next sync</dt><dd id="timeNext">-</dd>
-<dt>Backup clock</dt><dd id="timeRtc">-</dd>
 </dl>
 <div class="bottom"><div class="row"><button id="btnSync" type="button" class="btn">Sync time now</button></div></div>
 </section>
@@ -265,6 +264,11 @@ pre{margin:0;max-height:20em;overflow:auto;background:#0b0d0f;border:1px solid v
 <label class="opt"><input type="radio" name="freq" value="60000"><span><b>60 kHz</b><small>Like the Saga transmitter (west Japan)</small></span></label>
 <span class="sub">In east Japan, 60 kHz lets you tell whether a clock synced to the simulator or to the real signal. The ESP32 can only approximate 60 kHz.</span>
 </fieldset>
+<div class="field">
+<label for="resSel">Carrier fine-tuning</label>
+<select id="resSel"></select>
+<span id="resNote" class="sub"></span>
+</div>
 <div class="field">
 <label for="tzSel">Time zone</label>
 <select id="tzSel"></select>
@@ -339,6 +343,38 @@ const BUCKETS = ['< −50 ms', '−50 to −5 ms', '−5 to −0.5 ms', '−0.5 
 const WIFI_TEXT = {WL_CONNECTED: 'Connected', WL_NO_SSID_AVAIL: 'Network not found', WL_DISCONNECTED: 'Disconnected',
   WL_CONNECTION_LOST: 'Connection lost', WL_IDLE_STATUS: 'Idle', WL_CONNECT_FAILED: 'Connect failed'};
 const TZ_CHARS = /^[A-Za-z0-9<>+\-,./:]{1,63}$/;
+// POSIX TZ syntax, as the device checks it (WebUiValidTimeZone()): std offset [dst [offset] [,rule,rule]]
+const TZ_SYNTAX = (() => {
+  const name = '(?:[A-Za-z]{3,}|<[A-Za-z0-9+\\-]{3,}>)';
+  const hms = '\\d{1,3}(?::\\d{1,3}){0,2}';
+  const rule = '(?:M\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|J\\d{1,3}|\\d{1,3})(?:/' + hms + ')?';
+  return new RegExp('^' + name + '[+-]?' + hms + '(?:' + name + '(?:[+-]?' + hms + ')?(?:,' + rule + ',' + rule + ')?)?$');
+})();
+function validTz(tz) {
+  if (!TZ_CHARS.test(tz) || !TZ_SYNTAX.test(tz)) {
+    return false;
+  }
+  // the ranges the regular expression can't check
+  const inRange = (t, max) => t.split(':').every((v, i) => Number(v) <= (i ? 59 : max));
+  const body = tz.replace(/<[^>]*>/g, 'X').split(',');
+  const offsets = body[0].match(/[+-]?\d[\d:]*/g) || [];
+  if (!offsets.every(o => inRange(o.replace(/^[+-]/, ''), 24))) {
+    return false;
+  }
+  return body.slice(1).every(r => {
+    const [date, time] = r.split('/');
+    const n = date.replace(/^[MJ]/, '').split('.').map(Number);
+    const dateOk = date[0] === 'M' ? n[0] >= 1 && n[0] <= 12 && n[1] >= 1 && n[1] <= 5 && n[2] <= 6
+      : date[0] === 'J' ? n[0] >= 1 && n[0] <= 365 : n[0] <= 365;
+    return dateOk && (time === undefined || inRange(time, 167));
+  });
+}
+// The LEDC timer divides its 80 MHz clock by a divider with 8 fractional bits, and counts 2^bits steps per cycle.
+const RESOLUTIONS = [[8, '8-bit', 'default'], [2, '2-bit', ''], [1, '1-bit', '']];
+function ledcFreq(f, bits) {
+  const steps = 2 ** bits;
+  return 80e6 * 256 / (Math.round(80e6 * 256 / (f * steps)) * steps);
+}
 const NTP_CHARS = /^[A-Za-z0-9.\-]{1,63}$/;
 
 let st = null;           // the last /api/status
@@ -416,6 +452,7 @@ const bucketCells = BUCKETS.map((label, i) => {
 });
 ZONES.forEach(([tz, label]) => { const o = el('option', '', label); o.value = tz; $('tzSel').append(o); });
 { const o = el('option', '', 'Custom POSIX TZ…'); o.value = ''; $('tzSel').append(o); }
+RESOLUTIONS.forEach(([bits]) => { const o = el('option', '', ''); o.value = String(bits); $('resSel').append(o); });
 
 // --- live parts, every 100 ms of the device clock ---
 function tick() {
@@ -599,10 +636,8 @@ function renderStatus() {
   document.title = 'JJY Simulator · ' + s.host;
 
   $('sentence').textContent = !s.time_valid
-    ? 'No time code yet because the clock has not been set. Waiting for the first reply from ' + s.ntp + (s.rtc ? '.' : ', and no backup clock (RTC) is fitted.')
-    : 'Transmitting the JJY time code at ' + kHz + '. ' + (s.last_sync
-      ? 'Last synced with ' + s.ntp + ' ' + ago(nowSec - s.last_sync) + '.'
-      : 'Running on the RTC time; waiting for the first reply from ' + s.ntp + '.');
+    ? 'No time code yet because the clock has not been set. Waiting for the first reply from ' + s.ntp + '.'
+    : 'Transmitting the JJY time code at ' + kHz + '. Last synced with ' + s.ntp + ' ' + ago(nowSec - s.last_sync) + '.';
   $('tcChip').textContent = kHz + ' · GPIO' + s.pin;
 
   // LED card
@@ -629,15 +664,15 @@ function renderStatus() {
   $('wifiIp').textContent = w.ip;
   $('wifiRetries').textContent = w.retries + ' of ' + w.retry_max;
 
-  $('timeSource').textContent = s.time_source === 'ntp' ? 'NTP' : s.time_source === 'rtc' ? 'RTC (since restart)' : 'None yet';
+  $('timeSource').textContent = s.last_sync ? 'NTP' : 'None yet';
   $('timeServer').textContent = s.ntp;
   $('timeLast').textContent = s.last_sync ? hms(fields(s.last_sync * 1000)) + ' (' + ago(nowSec - s.last_sync) + ')' : 'Not yet';
   $('timeNext').textContent = s.last_sync ? 'In about ' + Math.max(1, Math.round((s.last_sync + s.sync_interval - nowSec) / 60)) + ' min' : 'Waiting for a reply';
-  $('timeRtc').textContent = s.rtc ? (s.last_sync ? 'RTC, updated at each sync' : 'RTC') : 'None detected';
 
   const up = s.uptime, days = Math.floor(up / 86400);
   $('devBoard').textContent = s.board;
-  $('devPin').textContent = 'GPIO' + s.pin + ' · ' + kHz + (s.freq_actual && s.freq_actual !== s.freq ? ' (' + num(s.freq_actual) + ' Hz)' : '');
+  $('devPin').textContent = 'GPIO' + s.pin + ' · ' + kHz + (s.freq_actual && s.freq_actual !== s.freq ? ' (' + num(s.freq_actual) + ' Hz)' : '')
+    + (s.res !== 8 ? ' · ' + s.res + '-bit' : '');
   $('devUptime').textContent = (days ? days + ' d ' : '') + p2(Math.floor(up % 86400 / 3600)) + ':' + p2(Math.floor(up % 3600 / 60)) + ':' + p2(up % 60);
   $('devReset').textContent = s.reset;
   $('devHeap').textContent = num(Math.round(s.heap / 1024)) + ' KB';
@@ -665,6 +700,7 @@ function renderStatus() {
   // settings: show the device's values unless they are being edited
   if (!formDirty) {
     document.querySelectorAll('input[name=freq]').forEach(r => { r.checked = Number(r.value) === s.freq; });
+    $('resSel').value = String(s.res);
     const preset = ZONES.some(z => z[0] === s.tz);
     $('tzSel').value = preset ? s.tz : '';
     $('tzCustom').hidden = preset;
@@ -678,17 +714,29 @@ function renderStatus() {
 function formValues() {
   const checked = document.querySelector('input[name=freq]:checked');
   const tz = $('tzSel').value || $('tzCustom').value.trim();
-  return {freq: checked ? Number(checked.value) : 0, tz, ntp: $('ntp').value.trim()};
+  return {freq: checked ? Number(checked.value) : 0, res: Number($('resSel').value), tz, ntp: $('ntp').value.trim()};
 }
 
 function renderForm() {
   const f = formValues();
-  const valid = (f.freq === 40000 || f.freq === 60000) && TZ_CHARS.test(f.tz) && NTP_CHARS.test(f.ntp);
-  const changed = st && (f.freq !== st.freq || f.tz !== st.tz || f.ntp !== st.ntp);
+  const tzOk = validTz(f.tz);
+  const valid = (f.freq === 40000 || f.freq === 60000) && RESOLUTIONS.some(r => r[0] === f.res) && tzOk && NTP_CHARS.test(f.ntp);
+  const changed = st && (f.freq !== st.freq || f.res !== st.res || f.tz !== st.tz || f.ntp !== st.ntp);
   $('tzValue').textContent = f.tz || '-';
+  const freq = f.freq || 40000;
+  RESOLUTIONS.forEach(([bits, label, note], i) => {
+    const hz = ledcFreq(freq, bits);
+    $('resSel').options[i].textContent = label + ' · ' + hz.toLocaleString('en-US', {minimumFractionDigits: 1, maximumFractionDigits: 1})
+      + ' Hz' + (note ? ' (' + note + ')' : '');
+  });
+  $('resNote').textContent = freq === 40000
+    ? '40 kHz comes out exact at every setting. This only matters at 60 kHz.'
+    : 'If a clock won\'t sync at 60 kHz, try 2-bit or 1-bit: they bring the carrier within a fraction of a hertz of 60 kHz. '
+      + 'The duty stays at 50%, so the signal strength is the same.';
   $('btnSave').disabled = !st || !st.auth || isLost() || !valid || !changed;
   $('setNote').textContent = !st ? '' : !st.auth ? 'Read-only: set web_password in the sketch to allow changes.'
-    : !valid ? 'Check the time zone and server: letters, digits and the usual punctuation only.'
+    : !tzOk ? 'The time zone is not a POSIX TZ string the simulator can use, e.g. JST-9 or CET-1CEST,M3.5.0,M10.5.0/3.'
+    : !valid ? 'Check the NTP server: letters, digits, dots and hyphens only.'
     : changed ? 'Saving asks for the device password, then the simulator restarts.' : 'No changes.';
 }
 

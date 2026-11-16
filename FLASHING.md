@@ -60,7 +60,7 @@ The README's tests used Arduino IDE 2.3.6 and arduino-cli 1.5.2-rc.1. The steps 
 - The board: an ATOMS3 Lite, ATOM Lite or ATOM Matrix.
 - A USB-C cable that carries data. Some cables only carry power; with one of those, the computer never sees the board.
 - A computer running Windows 10 or 11, macOS, or Linux, with an internet connection for the downloads. The board package is a large download: about 1.7 GB for 3.3.10, 1.5 GB for 3.2.3 and 0.8 GB for 2.1.4, and it takes more space once unpacked.
-- The antenna ([README section 3](./README.md#3-hardware)) and an RTC unit ([README section 8(2)](./README.md#2-using-an-rtc)) are not needed for flashing.
+- The antenna ([README section 3](./README.md#3-hardware)) and an RTC unit for Rev.3/Rev.4 ([README section 8(2)](./README.md#2-using-an-rtc-rev3rev4)) are not needed for flashing.
 
 What each operating system needs besides the IDE or arduino-cli (details in [section 3](#3-prepare-your-computer)):
 

@@ -2,6 +2,16 @@
 ## A JJY radio time signal simulator that runs on the ATOMS3 Lite and ATOM Lite/Matrix
 Note: the standard ATOMS3 (the non-Lite model) is not supported.
 
+### 2026-11-16 update
+- Added an English translation of BotanicFields' Qiita article [Generating a simulated JJY time signal with Ticker on the M5StickC / M5Atom](https://qiita.com/BotanicFields/items/a78c80f947388caf0d36), which explains how this firmware makes the signal: https://tunlezah.github.io/JJYSim/jjy-ticker/ ([docs/jjy-ticker/index.html](./docs/jjy-ticker/index.html)).
+- Rev.5: new "Carrier fine-tuning" setting on the web UI. At the default 8-bit LEDC resolution the 60 kHz carrier is really 60,015 Hz; 2-bit gives 60,000.2 Hz and 1-bit 59,999.9 Hz. Try it if a clock won't sync at 60 kHz. 40 kHz is exact at every setting. Rev.3/Rev.4: `ledc_resolution` can now be changed by hand; the 50% duty follows from it. See 8(4).
+- Rev.5: RTC support removed. Rev.5 takes the time from NTP only and no longer uses an RTC unit on the GROVE port; Rev.3/Rev.4 still do (see 8(2)).
+- Rev.5: only `loop()` writes to the serial port. The Ticker that makes the time code, and the SNTP callback, now only add to the log's buffer, so a slow serial port or a PC that has stopped reading can't delay a pulse on either board.
+- Rev.5: when SNTP steps the clock, at most the one pulse under way is affected, and it can only end early. Before, a step of 100 ms or more could skip the slot that ends a pulse and send a wrong bit.
+- Rev.5: the time zone is now checked as a POSIX TZ string. Text such as `Asia/Tokyo` used to be accepted and quietly sent UTC.
+- Added host tests (`python3 tests/run_host_tests.py`) for the time code, the pulse timing across clock steps and the time zone check, and a GitHub Actions workflow that runs them and compiles Rev.3/Rev.4/Rev.5 with the versions below.
+- Added a warning about the Wi-Fi setup hotspot to section 5.
+- These changes have been tested on the host and in the web UI demo, not yet on hardware.
 ### 2026-11-10 update
 - Added [docs/index.html](./docs/index.html), an archived reference copy of Tomokatsu Yukishita's article [DIY JJY Simulator with M5StickC: Syncing My Radio-Controlled Clock](https://yre.jp/en/post/jjy/), served with GitHub Pages at https://tunlezah.github.io/JJYSim/. All credit belongs to the author; please read the original while it is online.
 - Added a demo of the Rev.5 web UI that runs in the browser with a simulated device: https://tunlezah.github.io/JJYSim/web-ui-demo/ (see section 9).
@@ -39,7 +49,8 @@ Note: the standard ATOMS3 (the non-Lite model) is not supported.
 
 ### Rev.5
 - Folder: `BF-018ARev5`
-- Rev.4 (with the 2026-10-21 fixes) plus a web UI (see section 9). As in Rev.3, serial output on the ATOMS3 Lite can't stall the time signal when a connected PC stops reading the serial port.
+- Rev.4 (with the 2026-10-21 fixes) plus a web UI (see section 9). Serial output can't stall the time signal: only `loop()` writes to the serial port.
+- No RTC: the time comes from NTP only, so after power-on or a restart the signal starts once the first NTP reply arrives.
 - ATOMS3 Lite: install version 3.x of the M5Stack board package, as for Rev.4.
 - ATOM Lite/Matrix: version 2.x of the board package (with the Rev.3 library versions) or version 3.x.
 - No extra libraries are needed: the web server, mDNS and settings storage come with the board package.
@@ -113,7 +124,7 @@ Confirmed working with:
 ## 1. Overview
 This project uses an M5Atom to generate a simulated JJY signal for radio-controlled clocks, so you can set the time on clocks that are out of range of the real JJY broadcast. It gets the time via NTP over Wi-Fi and outputs the JJY signal on a GPIO pin.
 
-Reference (Qiita, in Japanese): [Generating a simulated JJY time signal with Ticker on the M5StickC / M5Atom](https://qiita.com/BotanicFields/items/a78c80f947388caf0d36)
+Reference (Qiita, in Japanese): [Generating a simulated JJY time signal with Ticker on the M5StickC / M5Atom](https://qiita.com/BotanicFields/items/a78c80f947388caf0d36). An unofficial English translation is at https://tunlezah.github.io/JJYSim/jjy-ticker/ ([docs/jjy-ticker/index.html](./docs/jjy-ticker/index.html)).
 
 Build write-up by Tomokatsu Yukishita: [DIY JJY Simulator with M5StickC: Syncing My Radio-Controlled Clock](https://yre.jp/en/post/jjy/) ([日本語](https://yre.jp/post/jjy/)). An archived copy is kept at https://tunlezah.github.io/JJYSim/ ([docs/index.html](./docs/index.html)).
 
@@ -175,6 +186,11 @@ Note: the SSID is a name based on the chip ID, and there is no password/key.
 (2-3) Enter the SSID/key of the network the M5Atom should connect to.
 
 >(3)	The M5Atom connects to Wi-Fi using the SSID/key you entered.
+
+> [!WARNING]
+> The setup hotspot is open: it has no password, and anyone within Wi-Fi range can join it while it is running. WiFiManager's portal on it also has a firmware update page (`/update`), which asks for no password. So while the hotspot is up, someone nearby could upload their own firmware to the device, or read the stored Wi-Fi password from a device they have reprogrammed this way.
+>
+> The hotspot runs for 60 seconds after a power-on or restart whenever the device can't join its saved network, and after the SSID/key is erased (8(3), 9(2)). The device also restarts itself after about 4 minutes without Wi-Fi (8(1)). Someone who can disrupt your Wi-Fi can therefore make the hotspot come up. If that matters where the device is installed, give the hotspot a password: in `setup()` of `BF-018ARevN.ino`, replace `wm.autoConnect();` with `wm.autoConnect("JJY-Sim", "a-password-of-8-or-more-characters");` (the first argument is the hotspot's SSID).
 ## 5. LCD
 The M5Atom version does not use an external LCD.
 
@@ -191,7 +207,9 @@ We have added recovery handling that responds to the Wi-Fi status. Recovery can 
 
 Reference (Qiita, in Japanese): [Trial and error with recovery handling for ESP32 Wi-Fi and tzapu/WiFiManager](https://qiita.com/BotanicFields/items/8a73101a8bfe51e57f67)
 
-### (2) Using an RTC
+### (2) Using an RTC (Rev.3/Rev.4)
+Rev.5 does not use an RTC: it takes the time from NTP only. The rest of this section applies to Rev.3 and Rev.4.
+
 Even if Wi-Fi is temporarily unavailable at power-on or after a reset, the device still transmits the JJY signal, based on the time held in the RTC (real-time clock). To make this possible, the RTC's time is updated whenever the time is synchronised via NTP, and the RTC keeps the current time based on its most recent update. To use this feature, connect an RTC unit to the M5Atom's GROVE port. In our experience, an RTC unit connected with a 20 cm GROVE cable was unreliable, whereas with a 10 cm cable it worked reliably.
 
 Examples of RTC units you can use:
@@ -214,6 +232,16 @@ The real JJY signal is broadcast at 40 kHz from the transmitting station in Fuku
 const uint32_t jjy_frequency(40000); // 40kHz(east), 60kHz(west)
 ```
 
+The carrier comes from the ESP32's LEDC (LED PWM controller). Its timer divides an 80 MHz clock by a divider with 8 fractional bits, and counts 2^n steps per carrier cycle, where n is the duty resolution. With the default 8 bits, the nearest divider for 60 kHz gives 60,015 Hz, 250 ppm high. Many clocks don't mind, but a receiver with a narrow crystal filter may pick it up less well. Fewer bits leave more room for the divider:
+
+| Resolution | 40 kHz carrier | 60 kHz carrier |
+|:-:|:-:|:-:|
+| 8 bits (default) | 40,000 Hz | 60,015 Hz |
+| 2 bits | 40,000 Hz | 60,000.2 Hz |
+| 1 bit | 40,000 Hz | 59,999.9 Hz |
+
+The duty stays at 50% at every resolution, so the carrier is the same square wave and the signal is just as strong; only its frequency changes. If a clock won't sync at 60 kHz, try 2 bits, then 1. In Rev.5, choose this as "Carrier fine-tuning" on the web UI (section 9); the frequency the LEDC really makes is shown on the page under Device, Antenna output. In Rev.3/Rev.4, change `ledc_resolution` in `BF-018ARevN.ino` to 2 or 1. These figures assume the LEDC runs from the 80 MHz APB clock, which the board packages choose for these frequencies; the startup log prints the frequency the timer really makes (`freq=`).
+
 Reference (Qiita, in Japanese): [Using an Excel sheet to work out the resolution setting for the ESP32's LEDC (LED PWM Controller)](https://qiita.com/BotanicFields/items/e74c449c0bef0820fcd1)
 
 ### (5) LED indications
@@ -229,7 +257,7 @@ Details: [JJY simulator status indications]
 |:-:|:--|:--|:-:|:-:|:-:|:--|
 | 1 | Transmitting the JJY signal | - | - | - | Blinking | Red LED blinking |
 | 2 | JJY signal stopped | - | - | - | Off | Red LED off |
-| 3 | NTP sync complete, or RTC time is valid | - | - | Off | - | Shows the local time |
+| 3 | NTP sync complete, or RTC time is valid (Rev.3/Rev.4) | - | - | Off | - | Shows the local time |
 | 4 | Waiting for NTP sync | - | - | Slow blink | - | Shows "Localtime not ready" |
 | 5 | Wi-Fi SSID/key entry (config portal) in progress | - | - | On | - | Shows the config portal's SSID and IP address |
 | 6 | Wi-Fi connected | `WL_CONNECTED` | Off | - | - | Shows the SSID of the connected network and the device's own IP address |
@@ -261,13 +289,14 @@ Rev.5 serves a status and settings page. In a browser on the same network, open 
 The page shows:
 - the time being transmitted, and the current minute's time code as it goes out
 - what the status LED means at the moment, with a switch for LED monitoring (the same as the button)
-- the Wi-Fi, NTP and RTC status, uptime and free memory
+- the Wi-Fi and NTP status, uptime and free memory
 - the timing statistics of the 100 ms slots that the firmware prints every minute
 - the serial log, so you don't need a USB connection to follow what the device is doing
 
 Settings you can change on the page (stored in flash, and applied when the device restarts):
 - carrier frequency: 40 kHz or 60 kHz (see 8(4))
-- time zone, as a POSIX TZ string. A JJY clock displays whatever local time it receives, so outside Japan you can choose your own time zone. Watches with a home-city setting, for example Citizen multi-band models, choose the station by the home city: only a city that uses the Japan station (Tokyo; on some models also Adelaide, Sydney, Nouméa and Auckland) makes the watch listen for JJY at all, and the watch then treats the received time as Japan time and converts it to the home city's offset. With a European, American or Chinese home city the watch listens for a different station and will never sync to this simulator. The simplest setup is the home city on Tokyo and your own time zone here. The JJY code carries no summer-time flag, so a time zone with daylight saving rules already includes the hour shift: set the watch's own summer time to OFF so the hour is not added again.
+- carrier fine-tuning: the LEDC resolution, 8-bit (default), 2-bit or 1-bit. At 60 kHz, fewer bits bring the carrier closer to exactly 60 kHz (see 8(4)); the page shows the frequency each choice gives
+- time zone, as a POSIX TZ string such as `JST-9` or `CET-1CEST,M3.5.0,M10.5.0/3` (a name like `Asia/Tokyo` is not accepted). A JJY clock displays whatever local time it receives, so outside Japan you can choose your own time zone. Watches with a home-city setting, for example Citizen multi-band models, choose the station by the home city: only a city that uses the Japan station (Tokyo; on some models also Adelaide, Sydney, Nouméa and Auckland) makes the watch listen for JJY at all, and the watch then treats the received time as Japan time and converts it to the home city's offset. With a European, American or Chinese home city the watch listens for a different station and will never sync to this simulator. The simplest setup is the home city on Tokyo and your own time zone here. The JJY code carries no summer-time flag, so a time zone with daylight saving rules already includes the hour shift: set the watch's own summer time to OFF so the hour is not added again.
 - NTP server
 
 The defaults are in `settings` at the top of `BF-018ARev5.ino`.

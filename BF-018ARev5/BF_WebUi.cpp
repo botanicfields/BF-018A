@@ -58,7 +58,113 @@ class BufferPrint : public Print {
 };
 
 //..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
+// POSIX TZ strings: std offset [dst [offset] [,rule,rule]], e.g. "CET-1CEST,M3.5.0,M10.5.0/3"
+// The C library takes any text and quietly uses UTC for what it can't parse, so the web UI checks the syntax first.
+// The page has the same check in JavaScript (validTz()).
+static bool TzNumber(const char *&p, int min, int max)  // 1 to 3 digits
+{
+  int n(0), digits(0);
+  while (isdigit((unsigned char)*p)) {
+    if (++digits > 3) {
+      return false;
+    }
+    n = n * 10 + (*p++ - '0');
+  }
+  return digits != 0 && n >= min && n <= max;
+}
+
+static bool TzName(const char *&p)  // 3 or more letters, or <...> with letters, digits, + and -
+{
+  const char *start = p;
+  if (*p == '<') {
+    ++p;
+    while (isalnum((unsigned char)*p) || *p == '+' || *p == '-') {
+      ++p;
+    }
+    if (*p != '>' || p - start - 1 < 3) {
+      return false;
+    }
+    ++p;
+    return true;
+  }
+  while (isalpha((unsigned char)*p)) {
+    ++p;
+  }
+  return p - start >= 3;
+}
+
+static bool TzTime(const char *&p, bool signed_time, int max_hours)  // [+-]hh[:mm[:ss]]
+{
+  if (signed_time && (*p == '+' || *p == '-')) {
+    ++p;
+  }
+  if (!TzNumber(p, 0, max_hours)) {
+    return false;
+  }
+  for (int i = 0; i < 2 && *p == ':'; ++i) {
+    ++p;
+    if (!TzNumber(p, 0, 59)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool TzRule(const char *&p)  // Mm.w.d, Jn or n, then an optional /time
+{
+  if (*p == 'M') {
+    ++p;
+    if (!TzNumber(p, 1, 12) || *p++ != '.' || !TzNumber(p, 1, 5) || *p++ != '.' || !TzNumber(p, 0, 6)) {
+      return false;
+    }
+  }
+  else if (*p == 'J') {
+    ++p;
+    if (!TzNumber(p, 1, 365)) {
+      return false;
+    }
+  }
+  else if (!TzNumber(p, 0, 365)) {
+    return false;
+  }
+  if (*p == '/') {
+    ++p;
+    return TzTime(p, false, 167);
+  }
+  return true;
+}
+
+bool WebUiValidTimeZone(const char *tz)
+{
+  const char *p = tz;
+  if (!TzName(p) || !TzTime(p, true, 24)) {
+    return false;
+  }
+  if (*p == '\0') {
+    return true;  // no daylight saving time
+  }
+  if (!TzName(p)) {
+    return false;
+  }
+  if (*p != '\0' && *p != ',' && !TzTime(p, true, 24)) {
+    return false;
+  }
+  if (*p == '\0') {
+    return true;  // the C library's default rules
+  }
+  if (*p++ != ',' || !TzRule(p) || *p++ != ',' || !TzRule(p)) {
+    return false;
+  }
+  return *p == '\0';
+}
+
+//..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
 // settings
+static bool ValidResolution(uint32_t bits)
+{
+  return bits == 8 || bits == 2 || bits == 1;
+}
+
 static bool ValidText(const String &s, size_t max_length, const char *extra_chars)
 {
   if (s.length() == 0 || s.length() >= max_length) {
@@ -83,8 +189,12 @@ void WebUiLoadSettings(WebUiSettings *settings)
   if (frequency == 40000 || frequency == 60000) {
     settings->jjy_frequency = frequency;
   }
+  uint8_t resolution = prefs.getUChar("res", settings->carrier_resolution);
+  if (ValidResolution(resolution)) {
+    settings->carrier_resolution = resolution;
+  }
   String time_zone = prefs.getString("tz", settings->time_zone);
-  if (ValidText(time_zone, sizeof(settings->time_zone), tz_chars)) {
+  if (ValidText(time_zone, sizeof(settings->time_zone), tz_chars) && WebUiValidTimeZone(time_zone.c_str())) {
     strlcpy(settings->time_zone, time_zone.c_str(), sizeof(settings->time_zone));
   }
   String ntp_server = prefs.getString("ntp", settings->ntp_server);
@@ -94,13 +204,14 @@ void WebUiLoadSettings(WebUiSettings *settings)
   prefs.end();
 }
 
-static bool SaveSettings(uint32_t frequency, const String &time_zone, const String &ntp_server)
+static bool SaveSettings(uint32_t frequency, uint8_t resolution, const String &time_zone, const String &ntp_server)
 {
   Preferences prefs;
   if (!prefs.begin(prefs_namespace, false)) {
     return false;
   }
   bool saved = prefs.putUInt("freq", frequency) == sizeof(frequency)
+            && prefs.putUChar("res", resolution) == sizeof(resolution)
             && prefs.putString("tz", time_zone) == time_zone.length()
             && prefs.putString("ntp", ntp_server) == ntp_server.length();
   prefs.end();
@@ -177,22 +288,24 @@ static void HandleSettings()
   if (!Allowed()) {
     return;
   }
-  uint32_t frequency = server.arg("freq").toInt();
-  String time_zone   = server.arg("tz");
+  uint32_t frequency  = server.arg("freq").toInt();
+  uint32_t resolution = server.arg("res").toInt();
+  String time_zone    = server.arg("tz");
   String ntp_server  = server.arg("ntp");
   time_zone.trim();
   ntp_server.trim();
-  if ((frequency != 40000 && frequency != 60000) ||
-      !ValidText(time_zone, sizeof(WebUiSettings::time_zone), tz_chars) ||
+  if ((frequency != 40000 && frequency != 60000) || !ValidResolution(resolution) ||
+      !ValidText(time_zone, sizeof(WebUiSettings::time_zone), tz_chars) || !WebUiValidTimeZone(time_zone.c_str()) ||
       !ValidText(ntp_server, sizeof(WebUiSettings::ntp_server), ntp_chars)) {
     SendJson(400, "{\"ok\":false,\"error\":\"invalid\"}");
     return;
   }
-  if (!SaveSettings(frequency, time_zone, ntp_server)) {
+  if (!SaveSettings(frequency, resolution, time_zone, ntp_server)) {
     SendJson(500, "{\"ok\":false,\"error\":\"not saved\"}");
     return;
   }
-  Log.printf("[Web]settings saved: %lu Hz, %s, %s: restarting..\n", (unsigned long)frequency, time_zone.c_str(), ntp_server.c_str());
+  Log.printf("[Web]settings saved: %lu Hz, %lu bits, %s, %s: restarting..\n", (unsigned long)frequency, (unsigned long)resolution,
+             time_zone.c_str(), ntp_server.c_str());
   SendJson(200, "{\"ok\":true,\"restart\":true}");
   Schedule(pending_restart);
 }

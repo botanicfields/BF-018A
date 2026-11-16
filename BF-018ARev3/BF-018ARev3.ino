@@ -195,8 +195,11 @@ const uint8_t  ledc_pin_atom(22);   // GPIO22 for ATOM Lite/Matrix
 const uint8_t  ledc_pin_atoms3(5);  // GPIO5 for ATOMS3 Lite
 const uint8_t  ledc_channel(0);
 const uint32_t ledc_frequency(jjy_frequency);
-const uint8_t  ledc_resolution(8);  // 2^8 = 256
-const uint32_t ledc_duty_on(128);   // 128/256 = 50%
+// LEDC duty resolution in bits: 8, 2 or 1. The LEDC timer divides its 80MHz clock by a divider with 8 fractional
+// bits and counts 2^resolution steps per carrier cycle. 40kHz is exact at any resolution; 60kHz is 60015Hz at 8 bits
+// (+250ppm), 60000.2Hz at 2 bits and 59999.9Hz at 1 bit. If a clock won't sync at 60kHz, try 2 or 1.
+const uint8_t  ledc_resolution(8);
+const uint32_t ledc_duty_on(1u << (ledc_resolution - 1));  // 50%: 128/256 at 8 bits
 const uint32_t ledc_duty_off(0);    // 0
 
 void TcoInit()

@@ -10,7 +10,7 @@
 
 const realFetch = window.fetch.bind(window);
 
-// --- the emulated device (BF-018ARev5.ino defaults, ATOMS3 Lite on board package 3.x, no RTC unit) ---
+// --- the emulated device (BF-018ARev5.ino defaults, ATOMS3 Lite on board package 3.x) ---
 const HOST = 'jjy-sim';
 const BOARD = 'ATOMS3 Lite';
 const PIN = 5;                // GPIO5 on the ATOMS3 Lite
@@ -26,7 +26,7 @@ const TZ_CHARS = /^[A-Za-z0-9<>+\-,./:]+$/;
 const NTP_CHARS = /^[A-Za-z0-9.\-]+$/;
 
 const dev = {
-  settings: {freq: 40000, tz: 'JST-9', ntp: 'pool.ntp.org'},
+  settings: {freq: 40000, res: 8, tz: 'JST-9', ntp: 'pool.ntp.org'},
   saved: null,          // settings saved from the page, applied at the next boot
   auth: true,           // web_password set
   online: true,         // answering HTTP
@@ -282,7 +282,12 @@ function ntpReply() {
 }
 
 // --- boot: setup() as far as Wi-Fi, then the rest once Wi-Fi is up ---
-const freqActual = f => f === 60000 ? 60015 : f;  // what the LEDC timer really makes from the 80 MHz clock
+// what the LEDC timer really makes from the 80 MHz clock: a divider with 8 fractional bits, 2^res steps per cycle,
+// and ledcChangeFrequency() reports it rounded down
+function freqActual(f, res) {
+  const steps = 2 ** res;
+  return Math.floor(80e6 * 256 / (Math.round(80e6 * 256 / (f * steps)) * steps));
+}
 function later(gen, ms, fn) {
   setTimeout(() => { if (gen === dev.gen) fn(); }, ms);
 }
@@ -308,10 +313,9 @@ function boot(reason, portal) {
   statsReset();
   later(gen, 3200, () => {  // after the 3 s delay in setup()
     log('\n');  // Log.println()
-    log('settings: ' + dev.settings.freq + ' Hz, ' + dev.settings.tz + ', ' + dev.settings.ntp + '\n');
+    log('settings: ' + dev.settings.freq + ' Hz, ' + dev.settings.res + ' bits, ' + dev.settings.tz + ', ' + dev.settings.ntp + '\n');
     log('FastLED add LEDs for ' + BOARD + '\n');
-    log('[PCF8563]ERROR WriteReg\n');
-    log('RTC not valid: set the localtime temporarily\n');
+    log('set the localtime temporarily until NTP replies\n');
     dev.clockOffset = Date.UTC(2017, 0, 1) - Date.now();
     log('localtime: ' + commaDate(local(devNow())) + '\n');
     if (portal) {
@@ -330,7 +334,7 @@ function wifiUp(gen) {
   ntpBegin();
   log('ledcAttach result= 1\n');
   log('ledcWrite result= 1\n');
-  log('pin= ' + PIN + ', duty= 0, freq= ' + freqActual(dev.settings.freq) + '\n');
+  log('pin= ' + PIN + ', resolution= ' + dev.settings.res + ' bits, duty= 0, freq= ' + freqActual(dev.settings.freq, dev.settings.res) + '\n');
   log('[Web]http://' + HOST + '.local/ or http://' + IP + '/ (' + (dev.auth ? 'changes need the password' : 'read-only: no password set') + ')\n');
   dev.online = true;
   later(gen, 150, () => log('[WiFi]WL_CONNECTED\n'));
@@ -367,9 +371,9 @@ function status() {
     auth: dev.auth, host: HOST, board: BOARD, uptime: Math.floor((Date.now() - dev.bootAt) / 1000), reset: dev.reset,
     heap: 231000 + Math.round(Math.random() * 3000),
     epoch_ms: Math.floor(ms), utc_offset: z.off, zone: z.zone,
-    time_valid: dev.timeValid, time_source: dev.lastSync ? 'ntp' : dev.timeValid ? 'rtc' : 'none',
-    last_sync: dev.lastSync, sync_interval: SYNC_INTERVAL, rtc: false,
-    tz: dev.settings.tz, ntp: dev.settings.ntp, freq: dev.settings.freq, freq_actual: freqActual(dev.settings.freq), pin: PIN,
+    time_valid: dev.timeValid, last_sync: dev.lastSync, sync_interval: SYNC_INTERVAL,
+    tz: dev.settings.tz, ntp: dev.settings.ntp, freq: dev.settings.freq,
+    freq_actual: freqActual(dev.settings.freq, dev.settings.res), res: dev.settings.res, pin: PIN,
     wifi: {status: 'WL_CONNECTED', ssid: SSID, rssi: -56 - Math.round(Math.random() * 5), ip: IP, retries: 0, retry_max: RETRY_MAX},
     led: {enabled: dev.led, r: 0, g: dev.timeValid ? 0 : 1, b: carrier ? 3 : 0},
     stats: tcoStats,
@@ -398,13 +402,16 @@ function route(method, path, query, headers, body) {
   const args = new URLSearchParams(body || '');
   if (path === '/api/settings') {
     const freq = parseInt(args.get('freq'), 10);
+    const res = parseInt(args.get('res'), 10);
     const tz = (args.get('tz') || '').trim();
     const ntp = (args.get('ntp') || '').trim();
-    if ((freq !== 40000 && freq !== 60000) || !validText(tz, TZ_CHARS) || !validText(ntp, NTP_CHARS)) {
+    // validTz() is the page's own copy of the device's POSIX TZ check (WebUiValidTimeZone())
+    if ((freq !== 40000 && freq !== 60000) || ![8, 2, 1].includes(res) || !validText(tz, TZ_CHARS) || !validTz(tz)
+        || !validText(ntp, NTP_CHARS)) {
       return json(400, {ok: false, error: 'invalid'});
     }
-    dev.saved = {freq, tz, ntp};
-    log('[Web]settings saved: ' + freq + ' Hz, ' + tz + ', ' + ntp + ': restarting..\n');
+    dev.saved = {freq, res, tz, ntp};
+    log('[Web]settings saved: ' + freq + ' Hz, ' + res + ' bits, ' + tz + ', ' + ntp + ': restarting..\n');
     restart(false);
     return json(200, {ok: true, restart: true});
   }

@@ -9,8 +9,7 @@
 #include <WiFiManager.h>  // https://github.com/tzapu/WiFiManager
 #include <esp_timer.h>
 #include "BF_Log.h"
-#include "BF_Pcf8563.h"
-#include "BF_RtcxNtp.h"
+#include "BF_Ntp.h"
 #include "BF_WebUi.h"
 
 //..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
@@ -19,6 +18,7 @@ WebUiSettings settings = {
   40000,           // jjy_frequency: 40kHz(east), 60kHz(west)
   "JST-9",         // time_zone
   "pool.ntp.org",  // ntp_server
+  8,               // carrier_resolution: LEDC duty resolution in bits, 8, 2 or 1 (see TcoInit())
 };
 
 //..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
@@ -34,8 +34,7 @@ struct timespec ts;  // time spec: second, nano-second
 
 //..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
 // for NTP
-bool   rtcx_available(false);
-bool   localtime_valid(false);
+volatile bool localtime_valid(false);  // set by loop() at the first SNTP sync, read by the Ticker
 time_t ntp_last_sync(0);  // when SNTP last set the time, 0: not yet
 
 //..:....1....:....2....:....3....:....4....:....5....:....6....:....7..
@@ -209,9 +208,8 @@ const int marker(0xff);  // marker code TcoValue() returns
 const uint8_t  ledc_pin_atom(22);   // GPIO22 for ATOM Lite/Matrix
 const uint8_t  ledc_pin_atoms3(5);  // GPIO5 for ATOMS3 Lite
 const uint8_t  ledc_channel(0);     // board package 2.x drives LEDC by channel
-const uint8_t  ledc_resolution(8);  // 2^8 = 256
-const uint32_t ledc_duty_on(128);   // 128/256 = 50%
 const uint32_t ledc_duty_off(0);    // 0
+      uint32_t ledc_duty_on(128);   // 50%: half of 2^settings.carrier_resolution, set by TcoInit()
       uint8_t  ledc_pin(ledc_pin_atom);
       uint32_t ledc_frequency(0);   // the carrier LEDC makes: close to settings.jjy_frequency
 
@@ -232,18 +230,28 @@ void TcoInit()
   if (M5.getBoard() == m5::board_t::board_M5AtomS3Lite) {
     ledc_pin = ledc_pin_atoms3;
   }
+
+  // The LEDC timer divides its 80MHz clock by a divider with 8 fractional bits, and counts 2^resolution steps per
+  // carrier cycle. 40kHz comes out exact at any resolution. 60kHz does not: at 8 bits the nearest divider gives
+  // 60015Hz (+250ppm), which may weaken reception on receivers with a narrow crystal filter. Fewer bits leave more
+  // room for the divider: 2 bits gives 60000.2Hz, 1 bit 59999.9Hz. The carrier is a square wave either way, since the
+  // duty is 50%; only the frequency changes. The frequency the timer really makes is printed below and on the web UI.
+  const uint8_t ledc_resolution = settings.carrier_resolution;
+  ledc_duty_on = 1u << (ledc_resolution - 1);  // 50%
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   Log.printf("ledcAttach result= %d\n", ledcAttach(ledc_pin, settings.jjy_frequency, ledc_resolution));
   // ledcReadFreq() reports 0 while the duty is 0, so take the frequency from ledcChangeFrequency(): it sets the
   // same timer values again and returns the frequency the timer really makes.
   ledc_frequency = ledcChangeFrequency(ledc_pin, settings.jjy_frequency, ledc_resolution);
   Log.printf("ledcWrite result= %d\n", ledcWrite(ledc_pin, ledc_duty_off));  // carrier off until the time is valid
-  Log.printf("pin= %u, duty= %lu, freq= %lu\n", ledc_pin, (unsigned long)ledcRead(ledc_pin), (unsigned long)ledc_frequency);
+  Log.printf("pin= %u, resolution= %u bits, duty= %lu, freq= %lu\n", ledc_pin, ledc_resolution, (unsigned long)ledcRead(ledc_pin),
+             (unsigned long)ledc_frequency);
 #else
   ledc_frequency = ledcSetup(ledc_channel, settings.jjy_frequency, ledc_resolution);
   ledcAttachPin(ledc_pin, ledc_channel);
   ledcWrite(ledc_channel, ledc_duty_off);  // carrier off until the time is valid
-  Log.printf("pin= %u, channel= %u, freq= %lu\n", ledc_pin, ledc_channel, (unsigned long)ledc_frequency);
+  Log.printf("pin= %u, channel= %u, resolution= %u bits, freq= %lu\n", ledc_pin, ledc_channel, ledc_resolution,
+             (unsigned long)ledc_frequency);
 #endif
 
   // start Ticker for TCO
@@ -262,7 +270,12 @@ void TcoGen()
   static double tk_sq_sum(0.0);
   static int    tk_distribution[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
   static int    tk_last_nsec(0);
-  static int    tk_last_slot(-1);  // the 100ms slot handled last
+
+  static time_t tk_last_sec(0);     // the second handled last
+  static int    tk_last_slot(-1);   // the 100ms slot handled last, -1: none yet
+  static int    tco_width(0);       // pulse width of this second in 100ms slots: 2 marker, 5 one, 8 zero
+  static int    tco_value(0);       // TcoValue() of this second
+  static bool   tco_on(false);      // the carrier is on
 
   if (!localtime_valid) {
     led_g = led_g_slow;  // localtime not valid yet
@@ -271,29 +284,56 @@ void TcoGen()
   }
   led_g = led_g_off;  // localtime valid
 
-  // Act on the first call in each 100ms slot. The slot is read from the clock every time,
-  // so the timing stays right when SNTP steps the clock.
+  // Act on the first call in each 100ms slot. The slot is read from the clock every time, so the timing stays right
+  // when SNTP steps the clock.
   clock_gettime(CLOCK_REALTIME, &ts);
-  int ts_100ms = ts.tv_nsec / 100000000;
-  if (ts_100ms == tk_last_slot) {
+  int  ts_100ms = ts.tv_nsec / 100000000;
+  bool new_second = ts.tv_sec != tk_last_sec || tk_last_slot < 0;
+  if (!new_second && ts_100ms == tk_last_slot) {
     return;
   }
+  bool first_call = tk_last_slot < 0;
+  int  prev_slot  = tk_last_slot;
+  tk_last_sec  = ts.tv_sec;
   tk_last_slot = ts_100ms;
-  localtime_r(&ts.tv_sec, &td);  // td from the same clock reading as ts
-  switch (ts_100ms) {
-    case 0: Tco000ms();  break;
-    case 2: Tco200ms();  break;
-    case 5: Tco500ms();  break;
-    case 8: Tco800ms();  break;
-    default:  break;
+
+  if (new_second) {
+    localtime_r(&ts.tv_sec, &td);  // td from the same clock reading as ts
+    tco_value = TcoValue();
+    tco_width = tco_value == marker ? 2 : tco_value != 0 ? 5 : 8;
   }
 
-  if (tk_count++ != 0) {
+  // The carrier state follows from the second and the slot, not from the slot edges, so a clock step that skips
+  // slots can't leave the carrier on past the end of its pulse. A pulse starts only in the first 100ms slot of a new
+  // second, and goes on only while the clock moves forward within that second. So when SNTP steps the clock, the
+  // pulse under way at that moment can only end early, never run long or into the next second, and a second whose
+  // first slot was skipped, as at the start of transmission mid-second, is left blank: receivers treat both as one
+  // lost second. (A step that lands in the first slot while a pulse is still on also leaves that second blank, so the
+  // two pulses don't merge into one.)
+  bool on = ts_100ms < tco_width && (new_second ? ts_100ms == 0 && !tco_on : tco_on && ts_100ms > prev_slot);
+  if (on != tco_on) {
+    tco_on = on;
+    if (on) {
+      TcOn();
+    }
+    else {
+      TcOff();
+      if      (tco_value == marker) Log.printf(" %d ", td.tm_sec);
+      else if (tco_value != 0)      Log.print("1");
+      else                          Log.print("0");
+    }
+  }
+  if (new_second && td.tm_sec == 0) {
+    Log.print(&td, "\n%A %B %d %Y %H:%M:%S\n");  // after switching the carrier, so the edge is not delayed
+  }
+
+  if (!first_call) {
     int tk_deviation = ts.tv_nsec - tk_last_nsec;
     if (tk_deviation < 0) {
       tk_deviation += 1000000000;  // 0xx - 9xx ms --> 10xx - 9xx ms
     }
     tk_deviation -= 100000000; // center 100 ms --> 0
+    ++tk_count;
 
     if (tk_max < tk_deviation) tk_max = tk_deviation;
     if (tk_min > tk_deviation) tk_min = tk_deviation;
@@ -312,7 +352,7 @@ void TcoGen()
   }
   tk_last_nsec = ts.tv_nsec;
 
-  if ((td.tm_sec == 0) && (ts.tv_nsec < 100000000)) {
+  if (new_second && td.tm_sec == 0 && tk_count != 0) {
     for (int i = 0; i < 9; ++i) {
       Log.printf("%d ", tk_distribution[i]);
     }
@@ -330,44 +370,6 @@ void TcoGen()
     tco_stats.min           = tk_min;
     tco_stats.max           = tk_max;
     portEXIT_CRITICAL(&tco_stats_mux);
-  }
-}
-
-// TCO task at every 0ms
-void Tco000ms()
-{
-  TcOn();
-  if (td.tm_sec == 0) {
-    Log.print(&td, "\n%A %B %d %Y %H:%M:%S\n");
-  }
-}
-
-// TCO task at every 200ms
-void Tco200ms()
-{
-  if (TcoValue() == marker) {
-    TcOff();
-    Log.printf(" %d ", td.tm_sec);
-  }
-}
-
-// TCO task at every 500ms
-void Tco500ms()
-{
-  if (TcoValue() != 0) {
-    TcOff();
-    if(TcoValue() != marker) {
-      Log.print("1");
-    }
-  }
-}
-
-// TCO task at every 800ms
-void Tco800ms()
-{
-  TcOff();
-  if (TcoValue() == 0) {
-    Log.print("0");
   }
 }
 
@@ -548,23 +550,20 @@ void WebUiStatusJson(Print &out)
   stats = tco_stats;
   portEXIT_CRITICAL(&tco_stats_mux);
 
-  const char* time_source = ntp_last_sync != 0 ? "ntp" : localtime_valid ? "rtc" : "none";
-
   out.printf("{\"auth\":%s,\"host\":", WebUiAuthEnabled() ? "true" : "false");
   WebUiJsonString(out, web_hostname);
   out.printf(",\"board\":\"%s\",\"uptime\":%lu,\"reset\":\"%s\",\"heap\":%lu",
              BoardName(), (unsigned long)(esp_timer_get_time() / 1000000), ResetReason(), (unsigned long)ESP.getFreeHeap());
   out.printf(",\"epoch_ms\":%lld,\"utc_offset\":%ld,\"zone\":", (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000, utc_offset);
   WebUiJsonString(out, zone);
-  out.printf(",\"time_valid\":%s,\"time_source\":\"%s\",\"last_sync\":%lld,\"sync_interval\":%lu,\"rtc\":%s",
-             localtime_valid ? "true" : "false", time_source, (long long)ntp_last_sync,
-             (unsigned long)(sntp_get_sync_interval() / 1000), rtcx_available ? "true" : "false");
+  out.printf(",\"time_valid\":%s,\"last_sync\":%lld,\"sync_interval\":%lu",
+             localtime_valid ? "true" : "false", (long long)ntp_last_sync, (unsigned long)(sntp_get_sync_interval() / 1000));
   out.print(",\"tz\":");
   WebUiJsonString(out, settings.time_zone);
   out.print(",\"ntp\":");
   WebUiJsonString(out, settings.ntp_server);
-  out.printf(",\"freq\":%lu,\"freq_actual\":%lu,\"pin\":%u",
-             (unsigned long)settings.jjy_frequency, (unsigned long)ledc_frequency, ledc_pin);
+  out.printf(",\"freq\":%lu,\"freq_actual\":%lu,\"res\":%u,\"pin\":%u",
+             (unsigned long)settings.jjy_frequency, (unsigned long)ledc_frequency, settings.carrier_resolution, ledc_pin);
   out.printf(",\"wifi\":{\"status\":\"%s\",\"ssid\":", WlStatus(wifi_status));
   WebUiJsonString(out, WiFi.SSID().c_str());
   out.printf(",\"rssi\":%d,\"ip\":\"%s\",\"retries\":%d,\"retry_max\":%d}",
@@ -609,13 +608,12 @@ void setup()
   // M5Unified
   auto cfg = M5.config();
   cfg.serial_baudrate = 115200;  // default=0. use Log.print(). 
-  cfg.external_rtc = true;       // default=false. use Unit RTC.
-                                 // Keep it: M5.begin() then starts Wire on the GROVE port, which rtcx.Begin(Wire) needs.
   M5.begin(cfg);
   delay(3000);
 #if ARDUINO_USB_CDC_ON_BOOT && ARDUINO_USB_MODE
-  // ATOMS3 Lite: Serial is the USB Serial/JTAG port (HWCDC). TcoGen() prints from the Ticker task, so it must not
-  // wait for a USB host that has stopped reading: output that can't be queued at once is dropped instead.
+  // ATOMS3 Lite: Serial is the USB Serial/JTAG port (HWCDC). Only loop() writes to it (see BF_Log.h), so a USB host
+  // that has stopped reading can't delay the time code, but it must not hold up loop() and the web UI either:
+  // output that can't be queued at once is dropped instead.
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 9)
   // 0, not 1: from arduino-esp32 3.3.9 on, HWCDC::write() gives up only after 20 tries that each wait the timeout,
   // so 0 gives up at once, and 1 would hold up every write for 20ms while the host is not reading.
@@ -626,11 +624,13 @@ void setup()
   Serial.setTxTimeoutMs(1);
 #endif
 #endif
+  Log.Begin();  // this task (setup() and loop()) writes the log to Serial; the Ticker only adds to the log's buffer
   Log.println();
 
   // settings saved from the web UI
   WebUiLoadSettings(&settings);
-  Log.printf("settings: %lu Hz, %s, %s\n", (unsigned long)settings.jjy_frequency, settings.time_zone, settings.ntp_server);
+  Log.printf("settings: %lu Hz, %u bits, %s, %s\n", (unsigned long)settings.jjy_frequency, settings.carrier_resolution,
+             settings.time_zone, settings.ntp_server);
 
   // FastLED
 #if defined (CONFIG_IDF_TARGET_ESP32S3)  // FastLED requires strict constant for the pin number 
@@ -646,24 +646,17 @@ void setup()
     leds[i] = 0;
   }
 
-  // Unit RTC (External)
-  if (rtcx.Begin(Wire) == 0) {
-    rtcx_available = true;
-    if (SetTimeFromRtcx(settings.time_zone)) {
-      localtime_valid = true;
-    }
-  }
-  if (!localtime_valid) {
-    Log.print("RTC not valid: set the localtime temporarily\n");
-    td.tm_year = 117;  // 2017 > 2016, getLocalTime() returns true
-    td.tm_mon  = 0;    // January
-    td.tm_mday = 1;
-    td.tm_hour = 0;
-    td.tm_min  = 0;
-    td.tm_sec  = 0;
-    struct timeval tv = { mktime(&td), 0 };
-    settimeofday(&tv, NULL);
-  }
+  // No RTC: the time code waits for the first NTP reply. Until then the clock is set to a placeholder time, because
+  // getLocalTime() treats years before 2016 as not set; localtime_valid keeps the carrier off meanwhile.
+  Log.print("set the localtime temporarily until NTP replies\n");
+  td.tm_year = 117;  // 2017 > 2016, getLocalTime() returns true
+  td.tm_mon  = 0;    // January
+  td.tm_mday = 1;
+  td.tm_hour = 0;
+  td.tm_min  = 0;
+  td.tm_sec  = 0;
+  struct timeval tv = { mktime(&td), 0 };
+  settimeofday(&tv, NULL);
   getLocalTime(&td);
   Log.print(&td, "localtime: %A, %B %d %Y %H:%M:%S\n");
   // print sample: must be < 64
@@ -712,11 +705,12 @@ void loop()
   LedShow();
 
   WifiCheck();
-  if (RtcxUpdate(rtcx_available)) {
+  if (NtpSynced()) {
     localtime_valid = true;  // SNTP sync completed
     ntp_last_sync = time(NULL);
   };
   WebUiHandle();
+  Log.Flush();  // what the Ticker and the SNTP callback logged
 
   // button: TCO monitor on/off
   if (M5.BtnA.wasReleased()) {

@@ -1,0 +1,61 @@
+# Compile the firmware with the board package and library versions in README.md, and run the host tests.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    name: Host tests (time code, TZ check, web UI demo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Time code and TZ check
+        run: python3 tests/run_host_tests.py
+      - name: Web UI demo is up to date with BF_WebUiPage.h
+        run: |
+          python3 tools/make_web_ui_demo.py
+          git diff --exit-code docs/web-ui-demo/index.html
+
+  compile:
+    name: ${{ matrix.sketch }} · ${{ matrix.board }} · board package ${{ matrix.core }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {sketch: BF-018ARev5, board: ATOMS3 Lite,     fqbn: m5stack_atoms3, core: 3.3.10, libs: M5Unified@0.2.28 M5GFX@0.2.35 FastLED@3.10.8 WiFiManager@2.0.17}
+          - {sketch: BF-018ARev5, board: ATOM Lite/Matrix, fqbn: m5stack_atom,   core: 3.3.10, libs: M5Unified@0.2.28 M5GFX@0.2.35 FastLED@3.10.8 WiFiManager@2.0.17}
+          - {sketch: BF-018ARev5, board: ATOMS3 Lite,     fqbn: m5stack_atoms3, core: 3.2.3,  libs: M5Unified@0.2.10 M5GFX@0.2.16 FastLED@3.10.3 WiFiManager@2.0.17}
+          - {sketch: BF-018ARev5, board: ATOM Lite/Matrix, fqbn: m5stack_atom,   core: 2.1.4,  libs: M5Unified@0.2.5 M5GFX@0.2.6 FastLED@3.10.3 WiFiManager@2.0.17}
+          - {sketch: BF-018ARev4, board: ATOMS3 Lite,     fqbn: m5stack_atoms3, core: 3.3.10, libs: M5Unified@0.2.28 M5GFX@0.2.35 FastLED@3.10.8 WiFiManager@2.0.17}
+          - {sketch: BF-018ARev3, board: ATOM Lite/Matrix, fqbn: m5stack_atom,   core: 2.1.4,  libs: M5Unified@0.2.5 M5GFX@0.2.6 FastLED@3.10.3 WiFiManager@2.0.17}
+    env:
+      ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS: https://static-cdn.m5stack.com/resource/arduino/package_m5stack_index.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: 1.x
+      - name: Cache the board package
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15/packages
+            ~/.arduino15/staging
+          key: m5stack-esp32-${{ matrix.core }}
+      - name: Install the board package and libraries
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install m5stack:esp32@${{ matrix.core }}
+          arduino-cli lib install --no-deps ${{ matrix.libs }}
+      - name: Compile
+        run: arduino-cli compile --warnings default -b m5stack:esp32:${{ matrix.fqbn }} ${{ matrix.sketch }}
