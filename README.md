@@ -12,6 +12,7 @@ Note: the standard ATOMS3 (the non-Lite model) is not supported.
 - Added host tests (`python3 tests/run_host_tests.py`) for the time code, the pulse timing across clock steps and the time zone check, and a GitHub Actions workflow that runs them and compiles Rev.3/Rev.4/Rev.5 with the versions below.
 - Added a warning about the Wi-Fi setup hotspot to section 5.
 - These changes have been tested on the host and in the web UI demo, not yet on hardware.
+- Added section 10: estimates of how far from the board a clock or watch will sync at 40 and 60 kHz, where to put it, and how long a power bank runs the simulator, from a model of the board ([tools/antenna_model.py](./tools/antenna_model.py)).
 ### 2026-11-10 update
 - Added [docs/index.html](./docs/index.html), an archived reference copy of Tomokatsu Yukishita's article [DIY JJY Simulator with M5StickC: Syncing My Radio-Controlled Clock](https://yre.jp/en/post/jjy/), served with GitHub Pages at https://tunlezah.github.io/JJYSim/. All credit belongs to the author; please read the original while it is online.
 - Added a demo of the Rev.5 web UI that runs in the browser with a simulated device: https://tunlezah.github.io/JJYSim/web-ui-demo/ (see section 9).
@@ -314,3 +315,77 @@ The web UI adds about 90 KB of flash (on the ATOMS3 Lite, 40% of the 3 MB app pa
 
 ### (4) Host name
 The name `jjy-sim` is set by `web_hostname`. Some devices, for example some Android phones, can't resolve `.local` names; use the IP address instead.
+
+## 10. Range and battery life (estimates)
+How far from the board a clock or watch will sync, and how long a power bank runs the simulator. The numbers come from a model of the BF-018A board, [tools/antenna_model.py](./tools/antenna_model.py): run `python3 tools/antenna_model.py` to print them and redraw the figures. It is built from the schematic, the coil traced from the Gerber files, datasheets, and the two measurements BotanicFields published. **Nothing here has been measured on this board by this project**: treat the figures as a guide to where to start, not a promise.
+
+### (1) The signal at the coil
+The GPIO's 50% square wave (3.3 V) goes through two RC low-pass stages (1 kΩ, 10 nF: about 16 kHz each), a coupling stage, an amplifier with a gain of 6.1, then 100 nF and 510 Ω into the coil. The coil is printed on the board: 10 turns on each side, 25 to 35 mm across, 143 cm² of turn area in all, about 17 µH and 3.7 Ω. Next to the 510 Ω resistor, the coil itself barely matters, so the current is set by the filter and the amplifier.
+
+| | 40 kHz | 60 kHz |
+|:--|:-:|:-:|
+| At the amplifier input (peak to peak) | 450 mV (measured by BotanicFields: 440 mV) | 240 mV |
+| Across the 510 Ω resistor (peak to peak) | 2.72 V (measured: 2.74 V) | 1.45 V |
+| Coil current (peak) | 2.7 mA | 1.4 mA |
+| Field compared with 40 kHz | | −5.4 dB |
+
+The model matches the oscilloscope readings in the [Qiita article](https://tunlezah.github.io/JJYSim/jjy-ticker/) to within a few percent. **The 60 kHz carrier comes out 5.4 dB weaker than 40 kHz**, because the low-pass filter that smooths the square wave cuts 60 kHz more. That is a bigger effect than the frequency error of 8(4); the carrier fine-tuning setting changes only the frequency, not the strength. The third harmonic of the square wave reaches the coil about 26 dB below the carrier.
+
+### (2) How the field falls with distance
+At 40 to 60 kHz the wavelength is 5 to 7.5 km, so everything within a few metres of the board is deep in the near field: the coil acts as a small magnet that turns on and off, and its field falls with the cube of the distance, about 18 dB each time the distance doubles. Twice as far is an eighth of the field, and a clock that is 10 dB less sensitive gets only 0.68 times the range.
+
+A radio-controlled clock or watch picks up the magnetic field with a coil on a ferrite bar, and only the part of the field along the bar counts. Receivers are rated by the field strength of a radio wave, so the figures here give the coil's field as the equivalent field strength in dB(µV/m). For comparison, NICT gives about 40 to over 60 dB(µV/m) for the real JJY signal across Japan.
+
+<img src="./docs/analysis/field-vs-distance.svg" alt="Equivalent field strength against distance for 40 and 60 kHz, in line and side by side, with the threshold lines" width="760">
+
+How strong the field must be depends on the clock and on what else is on the air:
+- **Measured clock in Japan, about 70 dB(µV/m).** BotanicFields' clock synced at 70 cm in line with the board but not at 90 cm, at 40 kHz. At 80 cm the coil gives about 70 dB(µV/m), well above what a clock needs from the real signal. A likely reason is that the real 40 kHz signal was on the air too: in Japan the simulator has to drown out the real station on the same frequency. This is also why 60 kHz is handy in eastern Japan (8(4)).
+- **No station on the same frequency, 50 to 60 dB(µV/m).** This is an assumption for outside Japan, or for 60 kHz in eastern Japan, where only the receiver's sensitivity and local electrical noise limit it. It is in the range real clocks work with indoors; a quiet room may need less, a desk full of chargers more.
+
+### (3) Where to put the clock or watch
+<img src="./docs/analysis/placement.svg" alt="Top view of the reach around the board: long lobes along the coil axis, shorter ones to the sides, and dead zones at 55 degrees" width="760">
+
+| Threshold | Carrier | Farthest, in line | Farthest, side by side | Comfortable, in line (10 dB margin) |
+|:--|:-:|:-:|:-:|:-:|
+| Measured clock in Japan (70 dB) | 40 kHz | 79 cm | 63 cm | 54 cm |
+| | 60 kHz | 64 cm | 51 cm | 44 cm |
+| No same-frequency station, typical room (60 dB) | 40 kHz | 117 cm | 93 cm | 79 cm |
+| | 60 kHz | 95 cm | 75 cm | 64 cm |
+| No same-frequency station, quiet room (50 dB) | 40 kHz | 171 cm | 137 cm | 117 cm |
+| | 60 kHz | 139 cm | 111 cm | 95 cm |
+
+- **Best: in line.** Put the clock on the coil's axis, which is the line through the middle of the round copper spiral, at right angles to the board. Turn the clock so that its ferrite bar lies along that line: the board's face looks at the end of the bar. In most wall and desk clocks the bar lies left-right, behind the dial or in the base, so stand the board upright beside the clock, facing it. This is the placement in BotanicFields' video at 70 cm.
+- **Fair: side by side.** With the clock beside the board's edge, in the board's plane, and the bar still parallel to the coil's axis, the field is half as strong: 0.79 times the in-line distance.
+- **Avoid the dead zones.** About 55° off the coil's axis, the field runs across the bar instead of along it, and a bar parallel to the axis picks up nothing there. A bar at right angles to the axis does the opposite: it picks up nothing straight in line or straight to the side. If a clock won't sync, turn it 90° before moving it closer. BotanicFields found that facing the front of the clock worked at 30 cm but not at 50 cm: placed like that, the bar is mostly across the field.
+- **Optimum distance:** with 40 kHz in Japan, 10 to 50 cm in line, matching the manual's "within 30 cm". Outside Japan, or at 60 kHz in eastern Japan, expect up to about 1 m with a typical clock. Closer than about 5 cm (three times the coil's radius), the field changes quickly with position, the Wi-Fi radio is close by too, and a clock's automatic gain control may not cope, so leave some space.
+- **Watches** have much smaller antennas than wall clocks, and most need a stronger field. Start at 10 to 20 cm, in line. Where the antenna sits varies by model; the manual usually says which edge of the watch should face a window. Try the watch in the four 90° positions before moving it closer.
+- **60 kHz** reaches 0.81 times as far as 40 kHz for the same clock, because of the 5.4 dB from (1). On the hardware side, changing C3 and C4 from 10 nF to 6.8 nF would make 60 kHz 5.2 dB stronger (1.22 times the range), but the 40 kHz output would then swing to about 2.3 V peak on a 5 V supply, close to clipping. This has not been tried.
+
+The field stays small. At 3 m in line, the model gives about 35 dB(µV/m) at 40 kHz and 30 dB(µV/m) at 60 kHz. Japan's rule for licence-free very weak emitters (微弱無線局) allows up to 500 µV/m, 54 dB(µV/m), at 3 m below 322 MHz. This compares an equivalent near-field figure with a rule meant for measured field strength, so it is a rough check, not a compliance test. Other countries have their own rules.
+
+### (4) Battery life
+The simulator draws its power from USB at 5 V, and almost all of it goes to Wi-Fi. The firmware keeps the ESP32's Wi-Fi receiver on all the time: `WiFi.setSleep(false)` in `setup()`, which keeps the button responsive. In that mode the ESP32 datasheet gives 113 mA at 3.3 V for the receiver with the CPU idle, and a measured ESP32 board drew 145 mA.
+
+| Part | Current at 5 V |
+|:--|:-:|
+| ESP32 with Wi-Fi always on, ATOM Lite (regulator taken as linear: an upper bound) | 110 to 145 mA |
+| ESP32-S3 with Wi-Fi always on, ATOMS3 Lite (SY8089 buck converter, about 88% efficient) | 83 to 109 mA |
+| USB serial chip and LED (ATOM Lite) / LED (ATOMS3 Lite) | about 8 mA / about 2 mA |
+| BF-018A op-amp and bias | 2 mA |
+| The antenna itself (2.7 mA peak at 40 kHz, carrier on about 60% of the time) | 0.5 mA |
+| **Total, ATOM Lite** | **about 120 to 155 mA (0.6 to 0.8 W)** |
+| **Total, ATOMS3 Lite** | **about 87 to 113 mA (0.4 to 0.6 W)** |
+
+The antenna uses less than 1% of the power, so 40 or 60 kHz, and any distance setting, make no difference to battery life.
+
+Running time from a USB power bank. The rating is taken at the 3.7 V cells, with 85% of it reaching the 5 V output:
+
+| Power bank | ATOM Lite | ATOMS3 Lite |
+|:-:|:-:|:-:|
+| 1,000 mAh | about 4 to 5 hours | about 5.5 to 7 hours |
+| 5,000 mAh | about 20 to 26 hours | about 28 to 36 hours |
+| 10,000 mAh | about 40 to 52 hours (about 2 days) | about 55 to 72 hours (2.5 to 3 days) |
+
+- Many power banks switch themselves off when the load stays below about 50 to 100 mA. At about 100 mA, an ATOMS3 Lite is near that limit; if the bank switches off after a while, use one with an always-on or low-current mode.
+- A clock only needs the signal for its few minutes of reception, usually at night. With a timer switch that powers the simulator for half an hour around that time (it needs a minute or so to join Wi-Fi and get the time first), a 10,000 mAh power bank would last about three months.
+- Letting Wi-Fi sleep between beacons (`WiFi.setSleep(true)`) would bring the ESP32 down to roughly 30 to 70 mA at 3.3 V (the datasheet's modem-sleep figures) and roughly double the running time. The time code doesn't need Wi-Fi between NTP syncs, but the firmware keeps Wi-Fi awake because the button can misbehave on M5Stack boards while it sleeps (see the link next to `WiFi.setSleep(false)` in `setup()`), and the web UI answers more slowly. This has not been tried.

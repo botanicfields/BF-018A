@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   host-tests:
-    name: Host tests (time code, TZ check, web UI demo)
+    name: Host tests (time code, TZ check, web UI demo, figures)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +24,10 @@ jobs:
         run: |
           python3 tools/make_web_ui_demo.py
           git diff --exit-code docs/web-ui-demo/index.html
+      - name: Range figures are up to date with tools/antenna_model.py
+        run: |
+          python3 tools/antenna_model.py
+          git diff --exit-code docs/analysis
 
   compile:
     name: ${{ matrix.sketch }} · ${{ matrix.board }} · board package ${{ matrix.core }}
